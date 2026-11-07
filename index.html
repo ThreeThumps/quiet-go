@@ -1,0 +1,1789 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- pwa -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Quiet Go">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#E5E9E6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111614" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<!-- /pwa -->
+<title>Quiet Go</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: one calm column — players, a wooden board as large as the screen allows, a status line, four thumb-sized buttons. */
+:root {
+  --bg: #E5E9E6;
+  --surface: #F4F6F4;
+  --line: #C6CFCA;
+  --fg: #1A2220;
+  --muted: #56635E;
+  --accent: #94560F;
+  --accent-ink: #FFF8EC;
+  --scrim: rgba(12, 18, 15, 0.45);
+  --font-display: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+  --font-ui: "Zen Kaku Gothic New", "Hiragino Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111614; --surface: #1A211E; --line: #2D3733; --fg: #E3E9E6; --muted: #93A29C;
+    --accent: #E0A24C; --accent-ink: #1C1307; --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111614; --surface: #1A211E; --line: #2D3733; --fg: #E3E9E6; --muted: #93A29C;
+  --accent: #E0A24C; --accent-ink: #1C1307; --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 15px/1.45 var(--font-ui);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+[hidden] { display: none !important; }
+.app { max-width: 720px; margin: 0 auto; padding-block: 10px 18px; display: flex; flex-direction: column; gap: 10px; min-height: 100%; }
+.top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.4rem; margin: 0; letter-spacing: 0.02em; }
+.meta { font-size: 0.74rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.players { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.chip { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface); min-width: 0; transition: border-color .2s; }
+.chip.turn { border-color: var(--accent); }
+.chip .txt { min-width: 0; }
+.chip .name { font-weight: 700; font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip .sub { font-size: 0.76rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip .dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; opacity: 0; transition: opacity .2s; }
+.chip.turn .dot { opacity: 1; }
+.stone { width: 22px; height: 22px; border-radius: 50%; flex: none; }
+.stone.b { background: radial-gradient(circle at 35% 30%, #6a6a6a, #171717 55%, #000); }
+.stone.w { background: radial-gradient(circle at 35% 30%, #fff, #eceae4 55%, #bdb8ac); box-shadow: inset 0 0 0 1px rgba(0,0,0,.14); }
+.board-wrap { width: min(100%, 760px); width: min(100%, calc(100dvh - 260px), 760px); min-width: min(100%, 280px); align-self: center; aspect-ratio: 1 / 1; position: relative; }
+#board { width: 100%; height: 100%; display: block; border-radius: 10px; box-shadow: 0 1px 0 rgba(0,0,0,.06), 0 12px 30px -14px rgba(0,0,0,.5); touch-action: manipulation; cursor: pointer; -webkit-user-select: none; user-select: none; }
+.status { min-height: 2.9em; text-align: center; margin: 0; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; text-wrap: balance; }
+.status b { font-weight: 700; }
+.controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.controls.two { grid-template-columns: 1fr 1fr; }
+.btn { appearance: none; -webkit-appearance: none; border: 1.5px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-weight: 700; padding: 12px 8px; border-radius: 12px; touch-action: manipulation; min-height: 50px; cursor: pointer; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn:focus-visible, .x:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+
+.scrim { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; z-index: 30; }
+.sheet { background: var(--surface); width: 100%; max-width: 560px; max-height: 92%; overflow: auto; -webkit-overflow-scrolling: touch; border-radius: 20px 20px 0 0;
+  padding-top: 18px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: max(18px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 16px; box-shadow: 0 -10px 40px rgba(0,0,0,.25); }
+@media (min-width: 600px) { .scrim { align-items: center; } .sheet { border-radius: 20px; max-height: 88%; } }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sheet h2 { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; margin: 0; }
+.sheet h3 { font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0; font-weight: 700; }
+.x { appearance: none; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; padding: 8px 4px; cursor: pointer; }
+fieldset.seg { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+fieldset.seg legend { padding: 0; font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
+.opts { display: flex; gap: 6px; flex-wrap: wrap; }
+.opts label { position: relative; flex: 1 1 auto; }
+.opts input { position: absolute; opacity: 0; inset: 0; margin: 0; }
+.opts span { display: block; text-align: center; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 10px; font-weight: 700; cursor: pointer; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.opts input:checked + span { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.opts input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opts input:disabled + span { opacity: 0.35; cursor: default; }
+.opts.stack { flex-direction: column; }
+.opts.stack span { text-align: left; white-space: normal; }
+.opts.stack small { display: block; font-weight: 400; font-size: 0.8rem; opacity: 0.8; }
+.hintline { font-size: 0.82rem; color: var(--muted); margin: 0; }
+.menu-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.menu-actions .wide { grid-column: 1 / -1; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.toggle:last-child { border-bottom: 0; }
+.toggle input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
+.confirm { border: 1.5px solid var(--accent); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.confirm p { margin: 0; }
+.record { margin: 0; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.9rem; }
+details { border-top: 1px solid var(--line); padding-top: 12px; }
+summary { font-weight: 700; cursor: pointer; }
+details p { color: var(--muted); font-size: 0.9rem; margin: 8px 0 0; max-width: 62ch; }
+.controls.three { grid-template-columns: 1fr 1fr 1fr; }
+.seg h3 { margin-bottom: 0; }
+.strength-btn { appearance: none; -webkit-appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; font: inherit; color: var(--fg); background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
+.strength-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sb-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.sb-txt small { color: var(--muted); font-size: 0.8rem; }
+.sb-go { color: var(--accent); font-weight: 700; }
+.lv-badge { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; background: var(--fg); color: var(--surface); font-variant-numeric: tabular-nums; }
+.lv-badge.big { width: 52px; height: 52px; font-size: 1.5rem; }
+.level-card { display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 14px; background: var(--bg); }
+.level-row { display: flex; align-items: center; gap: 14px; min-height: 60px; }
+.lv-txt { min-width: 0; }
+.lv-name { font-family: var(--font-display); font-weight: 800; font-size: 1.1rem; }
+.lv-desc { color: var(--muted); font-size: 0.88rem; }
+.scale, .sl-ends { display: flex; justify-content: space-between; gap: 8px; font-size: 0.74rem; color: var(--muted); }
+input[type="range"] { width: 100%; accent-color: var(--accent); height: 32px; margin: 0; touch-action: pan-y; }
+.tune { display: flex; flex-direction: column; gap: 16px; padding-top: 12px; }
+.slider { display: flex; flex-direction: column; gap: 2px; }
+.sl-head { display: flex; justify-content: space-between; gap: 12px; font-weight: 700; }
+.sl-head output { font-weight: 500; color: var(--accent); font-variant-numeric: tabular-nums; text-align: right; }
+.sgf { width: 100%; font: 0.8rem/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--fg); background: var(--bg); border: 1.5px solid var(--line); border-radius: 10px; padding: 10px; resize: vertical; }
+.sgf:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.file-btn { display: flex; align-items: center; justify-content: center; }
+#sgfFileIn:focus-visible + .sgf, .file-btn:focus-within { outline: 2px solid var(--accent); }
+@media (orientation: landscape) and (max-height: 520px) {
+  .app { display: grid; grid-template-columns: auto minmax(220px, 1fr); grid-template-rows: auto auto 1fr auto; column-gap: 18px; row-gap: 10px; max-width: 980px; align-items: start; }
+  .board-wrap { grid-column: 1; grid-row: 1 / span 4; width: min(calc(100vh - 40px), 62vw); width: min(calc(100dvh - 40px), 62vw); min-width: 0; align-self: start; }
+  .top, .players, .status, .controls { grid-column: 2; }
+  .status { align-self: center; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <h1>Quiet Go</h1>
+    <span class="meta" id="meta"></span>
+  </header>
+
+  <section class="players" aria-label="Players">
+    <div class="chip" id="chipB"><span class="stone b"></span><div class="txt"><div class="name" id="nameB">Black</div><div class="sub" id="subB"></div></div><span class="dot"></span></div>
+    <div class="chip" id="chipW"><span class="stone w"></span><div class="txt"><div class="name" id="nameW">White</div><div class="sub" id="subW"></div></div><span class="dot"></span></div>
+  </section>
+
+  <div class="board-wrap" id="boardWrap"><canvas id="board" role="img" aria-label="Go board"></canvas></div>
+
+  <p class="status" id="status" aria-live="polite"></p>
+
+  <nav class="controls" id="playControls">
+    <button class="btn" id="btnPass" type="button">Pass</button>
+    <button class="btn" id="btnUndo" type="button">Undo</button>
+    <button class="btn" id="btnHint" type="button">Hint</button>
+    <button class="btn" id="btnMenu" type="button">Menu</button>
+  </nav>
+  <nav class="controls two" id="scoreControls" hidden>
+    <button class="btn" id="btnResume" type="button">Keep playing</button>
+    <button class="btn primary" id="btnAccept" type="button">Accept score</button>
+  </nav>
+  <nav class="controls three" id="doneControls" hidden>
+    <button class="btn" id="btnMenu2" type="button">Menu</button>
+    <button class="btn" id="btnSave2" type="button">Save SGF</button>
+    <button class="btn primary" id="btnNew2" type="button">New game</button>
+  </nav>
+</main>
+
+<!-- Menu -->
+<div class="scrim" id="menuScrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="menuTitle">
+    <div class="sheet-head"><h2 id="menuTitle">Menu</h2><button class="x" type="button" data-close>Close</button></div>
+    <div class="menu-actions">
+      <button class="btn primary wide" id="mNew" type="button">New game</button>
+      <button class="btn wide" id="mStrength" type="button">Computer strength…</button>
+      <button class="btn" id="mAhead" type="button">Who's ahead?</button>
+      <button class="btn" id="mResign" type="button">Resign</button>
+      <button class="btn" id="mSave" type="button">Save SGF</button>
+      <button class="btn" id="mLoad" type="button">Load SGF</button>
+    </div>
+    <div class="confirm" id="resignBox" hidden>
+      <p>Resign this game? It counts as a loss.</p>
+      <div class="menu-actions">
+        <button class="btn" id="resignNo" type="button">Keep playing</button>
+        <button class="btn primary" id="resignYes" type="button">Resign</button>
+      </div>
+    </div>
+    <div>
+      <h3>Settings</h3>
+      <label class="toggle"><span>Show coordinates</span><input type="checkbox" id="optCoords"></label>
+      <label class="toggle"><span>Stone click sound<br><small class="hintline">Mixes with your audiobook instead of pausing it, where Safari allows.</small></span><input type="checkbox" id="optSound"></label>
+    </div>
+    <fieldset class="seg">
+      <legend>Tap twice to place a stone</legend>
+      <div class="opts">
+        <label><input type="radio" name="confirm" value="never" id="cfNever"><span>Never</span></label>
+        <label><input type="radio" name="confirm" value="large" id="cfLarge"><span>13×13 &amp; up</span></label>
+        <label><input type="radio" name="confirm" value="always" id="cfAlways"><span>Always</span></label>
+      </div>
+      <p class="hintline">The first tap shows a see-through stone, the second places it. It saves misclicks on small screens.</p>
+    </fieldset>
+    <div>
+      <h3>Your record against the computer</h3>
+      <p class="record" id="record"></p>
+    </div>
+    <details>
+      <summary>Rules used here</summary>
+      <p>You choose the scoring for each new game. Japanese (territory) scoring counts the empty points you surround plus every stone you captured, including dead stones removed at the end. Chinese (area) scoring counts your stones on the board plus the empty points you surround. White gets komi to make up for moving second.</p>
+      <p>Suicide is not allowed, and a single-stone ko can't be retaken immediately. With Japanese scoring, eyes inside a seki are counted as territory here, a small simplification.</p>
+      <p>The game ends after both players pass in a row. The computer then guesses which stones are dead. Tap a group to switch it between dead and alive, then accept the score.</p>
+    </details>
+  </div>
+</div>
+
+<!-- New game -->
+<div class="scrim" id="newScrim" hidden>
+  <form class="sheet" id="newForm" role="dialog" aria-modal="true" aria-labelledby="newTitle">
+    <div class="sheet-head"><h2 id="newTitle">New game</h2><button class="x" type="button" data-close>Cancel</button></div>
+    <fieldset class="seg">
+      <legend>Board</legend>
+      <div class="opts">
+        <label><input type="radio" name="size" value="9" id="sz9"><span>9×9</span></label>
+        <label><input type="radio" name="size" value="13" id="sz13"><span>13×13</span></label>
+        <label><input type="radio" name="size" value="19" id="sz19"><span>19×19</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="seg">
+      <legend>Opponent</legend>
+      <div class="opts">
+        <label><input type="radio" name="mode" value="ai" id="mdAi"><span>Computer</span></label>
+        <label><input type="radio" name="mode" value="local" id="mdLocal"><span>Two players, one phone</span></label>
+      </div>
+    </fieldset>
+    <div class="seg" id="levelSet">
+      <h3>Computer strength</h3>
+      <button class="strength-btn" type="button" id="ngStrength"><span class="lv-badge" id="ngLvNum">6</span><span class="sb-txt"><b id="ngLvName">Level 6</b><small id="ngLvDesc"></small></span><span class="sb-go">Change</span></button>
+    </div>
+    <fieldset class="seg" id="colorSet">
+      <legend>Your stones</legend>
+      <div class="opts">
+        <label><input type="radio" name="color" value="black" id="clB"><span>Black (first)</span></label>
+        <label><input type="radio" name="color" value="white" id="clW"><span>White</span></label>
+        <label><input type="radio" name="color" value="random" id="clR"><span>Random</span></label>
+      </div>
+    </fieldset>
+    <fieldset class="seg">
+      <legend id="hcLegend">Handicap stones for you</legend>
+      <div class="opts" id="hcOpts"></div>
+      <p class="hintline">Handicap stones go on the star points and you play Black. Komi drops to 0.5.</p>
+    </fieldset>
+    <fieldset class="seg">
+      <legend>Scoring</legend>
+      <div class="opts">
+        <label><input type="radio" name="rules" value="japanese" id="ruJp"><span>Japanese (territory)</span></label>
+        <label><input type="radio" name="rules" value="chinese" id="ruCn"><span>Chinese (area)</span></label>
+      </div>
+      <p class="hintline">Japanese: empty points you surround plus stones you captured. Chinese: your stones on the board plus surrounded points. The winner is nearly always the same either way.</p>
+    </fieldset>
+    <fieldset class="seg" id="komiSet">
+      <legend>Komi for White</legend>
+      <div class="opts">
+        <label><input type="radio" name="komi" value="0.5" id="km05"><span>0.5</span></label>
+        <label><input type="radio" name="komi" value="5.5" id="km55"><span>5.5</span></label>
+        <label><input type="radio" name="komi" value="6.5" id="km65"><span>6.5</span></label>
+        <label><input type="radio" name="komi" value="7.5" id="km75"><span>7.5</span></label>
+      </div>
+    </fieldset>
+    <button class="btn primary" type="submit" id="startBtn">Start game</button>
+  </form>
+</div>
+
+<!-- Computer strength -->
+<div class="scrim" id="aiScrim" hidden>
+  <form class="sheet" id="aiForm" role="dialog" aria-modal="true" aria-labelledby="aiTitle">
+    <div class="sheet-head"><h2 id="aiTitle">Computer strength</h2><button class="x" type="button" id="aiCancel">Cancel</button></div>
+    <div class="level-card">
+      <div class="level-row">
+        <span class="lv-badge big" id="lvNum">6</span>
+        <div class="lv-txt"><div class="lv-name" id="lvName">Thinking</div><div class="lv-desc" id="lvDesc"></div></div>
+      </div>
+      <input type="range" min="1" max="10" step="1" id="lvRange" aria-label="Level, 1 to 10">
+      <div class="scale" aria-hidden="true"><span>1 · easiest</span><span>10 · toughest</span></div>
+      <p class="hintline">Levels 6–10 read ahead. On 13×13 and 19×19 their thinking is capped at about 6 and 4½ seconds a move, so the top levels are closer together on big boards.</p>
+    </div>
+    <details id="tuneBox">
+      <summary>Fine-tune</summary>
+      <div class="tune">
+        <label class="slider" for="tSims"><span class="sl-head"><span>Reading ahead</span><output id="oSims"></output></span>
+          <input type="range" id="tSims" min="0" max="11" step="1">
+          <span class="sl-ends"><span>None (instant)</span><span>Deep (slow)</span></span></label>
+        <label class="slider" for="tMist"><span class="sl-head"><span>Loose moves</span><output id="oMist"></output></span>
+          <input type="range" id="tMist" min="0" max="40" step="1">
+          <span class="sl-ends"><span>Careful</span><span>Sloppy</span></span></label>
+        <label class="slider" for="tTac"><span class="sl-head"><span>Spots captures &amp; ataris</span><output id="oTac"></output></span>
+          <input type="range" id="tTac" min="30" max="100" step="5">
+          <span class="sl-ends"><span>Often misses</span><span>Always</span></span></label>
+        <label class="slider" for="tStyle"><span class="sl-head"><span>Style</span><output id="oStyle"></output></span>
+          <input type="range" id="tStyle" min="-100" max="100" step="10">
+          <span class="sl-ends"><span>Territory</span><span>Centre &amp; influence</span></span></label>
+        <label class="slider" for="tSpirit"><span class="sl-head"><span>Fighting spirit</span><output id="oSpirit"></output></span>
+          <input type="range" id="tSpirit" min="-100" max="100" step="10">
+          <span class="sl-ends"><span>Calm</span><span>Aggressive</span></span></label>
+        <label class="slider" for="tBig"><span class="sl-head"><span>Big moves</span><output id="oBig"></output></span>
+          <input type="range" id="tBig" min="-100" max="100" step="10">
+          <span class="sl-ends"><span>Answers locally</span><span>Grabs open areas</span></span></label>
+        <label class="slider" for="tRisk"><span class="sl-head"><span>Risk</span><output id="oRisk"></output></span>
+          <input type="range" id="tRisk" min="-100" max="100" step="10">
+          <span class="sl-ends"><span>Safe, stays home</span><span>Daring, invades</span></span></label>
+        <p class="hintline">Personality sliders shape which moves the computer likes. On levels 6–10 it still plays a clearly better move when it sees one, and uses its personality to choose between moves that are about equally good.</p>
+        <button class="btn" type="button" id="tuneReset">Reset to level defaults</button>
+      </div>
+    </details>
+    <label class="toggle"><span>Adjust after each game<br><small class="hintline">Win and the next game is one level harder. Lose and it's one level easier. Works on the standard levels, not custom strength.</small></span><input type="checkbox" id="optAuto"></label>
+    <button class="btn primary" type="submit" id="aiApply">Use this strength</button>
+  </form>
+</div>
+
+<!-- Save SGF -->
+<div class="scrim" id="saveScrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="saveTitle">
+    <div class="sheet-head"><h2 id="saveTitle">Save game</h2><button class="x" type="button" data-close>Close</button></div>
+    <p class="hintline" id="saveHelp">This is the game record in SGF, the format every Go app reads.</p>
+    <textarea id="sgfOut" class="sgf" readonly rows="6" aria-label="SGF game record"></textarea>
+    <div class="menu-actions">
+      <button class="btn" id="sgfCopy" type="button">Copy SGF</button>
+      <button class="btn primary" id="sgfFile" type="button">Save file</button>
+    </div>
+    <p class="hintline" id="saveMsg" aria-live="polite"></p>
+  </div>
+</div>
+
+<!-- Load SGF -->
+<div class="scrim" id="loadScrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="loadTitle">
+    <div class="sheet-head"><h2 id="loadTitle">Load game</h2><button class="x" type="button" data-close>Close</button></div>
+    <p class="hintline">Pick an .sgf file or paste a game record. The game opens at its last move and you can keep playing.</p>
+    <label class="btn file-btn" for="sgfFileIn">Choose SGF file</label>
+    <input type="file" id="sgfFileIn" class="vh">
+    <textarea id="sgfIn" class="sgf" rows="5" placeholder="(;GM[1]FF[4]SZ[9];B[ee];W[gc]…)" aria-label="Paste SGF here"></textarea>
+    <fieldset class="seg">
+      <legend>Continue as</legend>
+      <div class="opts">
+        <label><input type="radio" name="loadAs" value="tomove" id="laMove" checked><span>Side to move</span></label>
+        <label><input type="radio" name="loadAs" value="1" id="laB"><span>Black</span></label>
+        <label><input type="radio" name="loadAs" value="2" id="laW"><span>White</span></label>
+        <label><input type="radio" name="loadAs" value="local" id="laLocal"><span>Two players</span></label>
+      </div>
+    </fieldset>
+    <button class="btn primary" type="button" id="sgfLoadBtn">Open game</button>
+    <p class="hintline" id="loadMsg" aria-live="polite"></p>
+  </div>
+</div>
+
+<script id="engine">
+"use strict";
+/* ===== Go engine: shared by the page and the background worker ===== */
+var GEOM = {};
+function geom(n) {
+  if (GEOM[n]) return GEOM[n];
+  var n2 = n * n, nb = new Int16Array(n2 * 4).fill(-1), dg = new Int16Array(n2 * 4).fill(-1);
+  var edge = new Uint8Array(n2), line = new Uint8Array(n2);
+  for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+    var p = y * n + x, k = 0;
+    if (x > 0) nb[p * 4 + k++] = p - 1;
+    if (x < n - 1) nb[p * 4 + k++] = p + 1;
+    if (y > 0) nb[p * 4 + k++] = p - n;
+    if (y < n - 1) nb[p * 4 + k++] = p + n;
+    edge[p] = k < 4 ? 1 : 0;
+    line[p] = Math.min(x, y, n - 1 - x, n - 1 - y);
+    k = 0;
+    if (x > 0 && y > 0) dg[p * 4 + k++] = p - n - 1;
+    if (x < n - 1 && y > 0) dg[p * 4 + k++] = p - n + 1;
+    if (x > 0 && y < n - 1) dg[p * 4 + k++] = p + n - 1;
+    if (x < n - 1 && y < n - 1) dg[p * 4 + k++] = p + n + 1;
+  }
+  var g = { n: n, n2: n2, nb: nb, dg: dg, edge: edge, line: line,
+    sm: new Int32Array(n2), lm: new Int32Array(n2), qm: new Int32Array(n2), sg: 0, lg: 0, qg: 0, miCap: 0, miSave: 0,
+    st: new Int16Array(n2), lb: new Int16Array(n2), ns: 0, nl: 0, newKo: -1,
+    tmp: new Int8Array(n2), tmp2: new Int8Array(n2) };
+  GEOM[n] = g;
+  return g;
+}
+
+/* Full chain scan: stones in g.st[0..ns), liberties in g.lb[0..nl). Returns liberty count. */
+function scan(b, g, p) {
+  var color = b[p], sm = g.sm, lm = g.lm, sg = ++g.sg, lg = ++g.lg, nb = g.nb, st = g.st, lb = g.lb;
+  var ns = 0, nl = 0;
+  st[ns++] = p; sm[p] = sg;
+  for (var i = 0; i < ns; i++) {
+    var q = st[i] * 4;
+    for (var k = 0; k < 4; k++) {
+      var r = nb[q + k]; if (r < 0) break;
+      var v = b[r];
+      if (v === 0) { if (lm[r] !== lg) { lm[r] = lg; lb[nl++] = r; } }
+      else if (v === color && sm[r] !== sg) { sm[r] = sg; st[ns++] = r; }
+    }
+  }
+  g.ns = ns; g.nl = nl;
+  return nl;
+}
+
+/* Fast check: 1 if the chain has any liberty (early exit), 0 otherwise (then g.st holds every stone). */
+function hasLib(b, g, p) {
+  var color = b[p], sm = g.sm, sg = ++g.sg, nb = g.nb, st = g.st, ns = 0;
+  st[ns++] = p; sm[p] = sg;
+  for (var i = 0; i < ns; i++) {
+    var q = st[i] * 4;
+    for (var k = 0; k < 4; k++) {
+      var r = nb[q + k]; if (r < 0) break;
+      var v = b[r];
+      if (v === 0) { g.ns = ns; return 1; }
+      if (v === color && sm[r] !== sg) { sm[r] = sg; st[ns++] = r; }
+    }
+  }
+  g.ns = ns;
+  return 0;
+}
+
+/* Play color c at p on board b. Returns stones captured, or -1 if illegal. Sets g.newKo. */
+function play(b, g, p, c, ko) {
+  if (b[p] !== 0 || p === ko) return -1;
+  var o = 3 - c, cap = 0, capPt = -1, base = p * 4, nb = g.nb;
+  b[p] = c;
+  for (var k = 0; k < 4; k++) {
+    var r = nb[base + k]; if (r < 0) break;
+    if (b[r] === o && hasLib(b, g, r) === 0) {
+      for (var i = 0; i < g.ns; i++) b[g.st[i]] = 0;
+      cap += g.ns; capPt = r;
+    }
+  }
+  if (cap === 0 && hasLib(b, g, p) === 0) { b[p] = 0; return -1; }
+  g.newKo = -1;
+  if (cap === 1) { var libs = scan(b, g, p); if (g.ns === 1 && libs === 1) g.newKo = capPt; }
+  return cap;
+}
+
+function isEye(b, g, p, c) {
+  var nb = g.nb, dg = g.dg, base = p * 4, k, r;
+  for (k = 0; k < 4; k++) { r = nb[base + k]; if (r < 0) break; if (b[r] !== c) return false; }
+  var bad = 0, o = 3 - c;
+  for (k = 0; k < 4; k++) { r = dg[base + k]; if (r < 0) break; if (b[r] === o) bad++; }
+  return g.edge[p] ? bad === 0 : bad <= 1;
+}
+
+function emptyOwner(t, g, p) {
+  var o = 0, base = p * 4;
+  for (var k = 0; k < 4; k++) {
+    var r = g.nb[base + k]; if (r < 0) break;
+    var v = t[r]; if (v === 0) return 0;
+    if (o === 0) o = v; else if (o !== v) return 0;
+  }
+  return o;
+}
+
+function makeRng(seed) {
+  var s = (seed >>> 0) || 0x9e3779b9;
+  return function () { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
+}
+var nowMs = (typeof performance !== "undefined" && performance.now) ? function () { return performance.now(); } : function () { return Date.now(); };
+
+/* Random playout to the end, never filling own eyes. */
+function playout(b, g, toMove, ko, rng, maxMoves) {
+  var n2 = g.n2, passes = 0, c = toMove, moves = 0;
+  while (passes < 2 && moves < maxMoves) {
+    var start = (rng() * n2) | 0, played = false;
+    for (var i = 0; i < n2; i++) {
+      var p = start + i; if (p >= n2) p -= n2;
+      if (b[p] !== 0 || p === ko) continue;
+      if (isEye(b, g, p, c)) continue;
+      if (play(b, g, p, c, ko) >= 0) { ko = g.newKo; played = true; break; }
+    }
+    if (played) passes = 0; else { passes++; ko = -1; }
+    c = 3 - c; moves++;
+  }
+}
+
+/* Monte Carlo ownership: +1 = Black owns, -1 = White owns. score = Black minus White minus komi. */
+function estimate(b, g, toMove, ko, komi, K, rng) {
+  var n2 = g.n2, own = new Float32Array(n2), t = new Int8Array(n2), sum = 0, wins = 0;
+  for (var k = 0; k < K; k++) {
+    t.set(b); playout(t, g, toMove, ko, rng, n2 * 2);
+    var s = 0;
+    for (var p = 0; p < n2; p++) {
+      var v = t[p]; if (v === 0) v = emptyOwner(t, g, p);
+      if (v === 1) { own[p]++; s++; } else if (v === 2) { own[p]--; s--; }
+    }
+    s -= komi; sum += s; if (s > 0) wins++;
+  }
+  for (var q = 0; q < n2; q++) own[q] /= K;
+  return { own: own, score: sum / K, winB: wins / K };
+}
+
+function nearDist(b, g) {
+  var n2 = g.n2, d = new Int8Array(n2).fill(99), q = new Int16Array(n2), h = 0, t = 0;
+  for (var p = 0; p < n2; p++) if (b[p]) { d[p] = 0; q[t++] = p; }
+  while (h < t) {
+    var x = q[h++]; if (d[x] >= 8) continue;
+    for (var k = 0; k < 4; k++) { var r = g.nb[x * 4 + k]; if (r < 0) break; if (d[r] > d[x] + 1) { d[r] = d[x] + 1; q[t++] = r; } }
+  }
+  return d;
+}
+
+function crowd(b, g, R) {
+  var n = g.n, out = new Int16Array(g.n2);
+  for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+    var c = 0;
+    for (var yy = Math.max(0, y - R); yy <= Math.min(n - 1, y + R); yy++)
+      for (var xx = Math.max(0, x - R); xx <= Math.min(n - 1, x + R); xx++) if (b[yy * n + xx]) c++;
+    out[y * n + x] = c;
+  }
+  return out;
+}
+
+/* ----- Strength settings -----
+   sims: tree-search simulations per move (0 = quick heuristic only)
+   mistakes: 0..0.4 chance-ish of a loose move; tactics: 0.3..1 how reliably it sees captures/ataris
+   style: -1 territory .. +1 centre/influence; spirit: -1 calm .. +1 aggressive
+   big: -1 answers locally .. +1 grabs big open points; risk: -1 safe .. +1 daring (invades) */
+var PRESETS = [
+  null,
+  { sims: 0, mistakes: 0.40, tactics: 0.35 },
+  { sims: 0, mistakes: 0.30, tactics: 0.50 },
+  { sims: 0, mistakes: 0.22, tactics: 0.65 },
+  { sims: 0, mistakes: 0.14, tactics: 0.80 },
+  { sims: 0, mistakes: 0.07, tactics: 0.95 },
+  { sims: 500, mistakes: 0.06, tactics: 1 },
+  { sims: 1500, mistakes: 0.04, tactics: 1 },
+  { sims: 3500, mistakes: 0.02, tactics: 1 },
+  { sims: 8000, mistakes: 0.01, tactics: 1 },
+  { sims: 16000, mistakes: 0, tactics: 1 }
+];
+function presetAI(level) {
+  var p = PRESETS[Math.max(1, Math.min(10, level | 0))];
+  return { level: level | 0, sims: p.sims, mistakes: p.mistakes, tactics: p.tactics, style: 0, spirit: 0, big: 0, risk: 0 };
+}
+
+/* Liberties a stone at p would have (approximate, counts captures) without touching the board.
+   Sets g.miCap (stones captured) and g.miSave (own stones in atari that this joins). */
+function moveInfo(b, g, p, c) {
+  var o = 3 - c, nb = g.nb, base = p * 4, qm = g.qm, qg = ++g.qg, libs = 0, cap = 0, save = 0, k, r, i;
+  for (k = 0; k < 4; k++) { r = nb[base + k]; if (r < 0) break; if (b[r] === 0 && qm[r] !== qg) { qm[r] = qg; libs++; } }
+  for (k = 0; k < 4; k++) {
+    r = nb[base + k]; if (r < 0) break;
+    var v = b[r]; if (v === 0) continue;
+    var L = scan(b, g, r);
+    if (v === o) { if (L === 1) cap += g.ns; }
+    else {
+      if (L === 1) save += g.ns;
+      for (i = 0; i < L; i++) { var q = g.lb[i]; if (q !== p && qm[q] !== qg) { qm[q] = qg; libs++; } }
+    }
+  }
+  g.miCap = cap; g.miSave = save;
+  return libs + (cap > 0 ? 1 : 0);
+}
+
+/* Playout with simple tactics: capture a stone that was just put in atari, rescue own stones,
+   usually refuse self-atari. Records which colour first played each point (for RAVE). */
+function heavyPlayout(b, g, toMove, ko, last, rng, maxMoves, amaf) {
+  var n2 = g.n2, nb = g.nb, passes = 0, c = toMove, moves = 0, k, r, p, i;
+  while (passes < 2 && moves < maxMoves) {
+    var o = 3 - c, mv = -1;
+    if (last >= 0 && rng() < 0.9) {
+      /* capture the last move's group if it is in atari */
+      if (b[last] === o && scan(b, g, last) === 1 && g.lb[0] !== ko) mv = g.lb[0];
+      /* save own group adjacent to the last move */
+      if (mv < 0) {
+        for (k = 0; k < 4 && mv < 0; k++) {
+          r = nb[last * 4 + k]; if (r < 0) break;
+          if (b[r] === c && scan(b, g, r) === 1) {
+            var lib = g.lb[0];
+            if (lib !== ko && moveInfo(b, g, lib, c) >= 2) mv = lib;
+          }
+        }
+      }
+      if (mv >= 0 && play(b, g, mv, c, ko) < 0) mv = -1;
+      else if (mv >= 0) ko = g.newKo;
+    }
+    if (mv < 0) {
+      var start = (rng() * n2) | 0;
+      for (i = 0; i < n2; i++) {
+        p = start + i; if (p >= n2) p -= n2;
+        if (b[p] !== 0 || p === ko) continue;
+        if (isEye(b, g, p, c)) continue;
+        var L = moveInfo(b, g, p, c);
+        if (L === 0) continue;
+        if (L === 1 && g.miCap === 0 && rng() < 0.9) continue;
+        if (play(b, g, p, c, ko) >= 0) { ko = g.newKo; mv = p; break; }
+      }
+    }
+    if (mv >= 0) { passes = 0; if (amaf && !amaf[mv]) amaf[mv] = c; }
+    else { passes++; ko = -1; }
+    last = mv; c = 3 - c; moves++;
+  }
+}
+
+function finalScore(t, g, komi) {
+  var s = 0;
+  for (var p = 0; p < g.n2; p++) { var v = t[p] || emptyOwner(t, g, p); if (v === 1) s++; else if (v === 2) s--; }
+  return s - komi;
+}
+
+/* Heuristic value of playing c at p. Returns null when illegal. */
+function evalPoint(b, g, p, c, ko, ctx) {
+  var o = 3 - c, n = g.n, base = p * 4, k, r, v, ai = ctx.ai;
+  var saveSize = 0, ownN = 0, oppN = 0;
+  var gg = ++ctx.gg, gm = ctx.gm, atari = ctx.atari; atari.length = 0;
+  for (k = 0; k < 4; k++) {
+    r = g.nb[base + k]; if (r < 0) break;
+    v = b[r]; if (v === 0) continue;
+    if (v === c) ownN++; else oppN++;
+    if (gm[r] === gg) continue;
+    var libs = scan(b, g, r), sz = g.ns;
+    for (var i = 0; i < sz; i++) gm[g.st[i]] = gg;
+    if (v === o) { if (libs === 2) atari.push(r); }
+    else if (libs === 1) saveSize += sz;
+  }
+  var t = g.tmp; t.set(b);
+  var cap = play(t, g, p, c, ko);
+  if (cap < 0) return null;
+  var L = scan(t, g, p), S = g.ns;
+  var tac = 0, sc = 0, pers = 0, spirit = ai.spirit || 0, style = ai.style || 0, bigm = ai.big || 0, risk = ai.risk || 0;
+  if (cap > 0) { tac += 5 + 4 * cap; if (saveSize > 0) tac += 3 * saveSize; }
+  if (saveSize > 0 && cap === 0) {
+    if (L >= 3) tac += 4 + 3 * saveSize; else if (L === 2) tac += 0.5 + 0.8 * saveSize;
+  }
+  if (L === 1) { if (cap === 0) tac -= 4 + 3 * S; }
+  else if (L === 2 && S > 2 && saveSize === 0 && cap === 0) sc -= 1;
+  if (L === 2 && cap === 0 && saveSize === 0) pers -= 0.8 * Math.max(0, -risk);
+  if (L >= 2) {
+    for (var a = 0; a < atari.length; a++) {
+      var ar = atari[a]; if (t[ar] !== o) continue;
+      if (scan(t, g, ar) !== 1) continue;
+      var asz = g.ns, esc = g.lb[0], t2 = g.tmp2; t2.set(t);
+      var bonus;
+      if (play(t2, g, esc, o, -1) < 0) bonus = 3 + 2 * asz;
+      else {
+        var L2 = scan(t2, g, esc);
+        bonus = L2 <= 1 ? 3 + 2 * asz : L2 === 2 ? 1 + 0.7 * asz : 0.6;
+      }
+      tac += bonus; pers += bonus * 0.4 * spirit;
+    }
+  }
+  var early = ctx.early, d = g.line[p];
+  var tab = n <= 9 ? [-2.5, -0.6, 1.2, 0.8, 0.6] : [-3, -1, 1.2, 1.2, 0.4];
+  var styleTab = [0, -0.4, -0.45, 0.4, 0.6];
+  sc += tab[Math.min(d, 4)] * (0.35 + 0.65 * early);
+  pers += style * styleTab[Math.min(d, 4)] * (0.6 + 0.6 * early);
+  var x = p % n, y = (p / n) | 0;
+  if (early > 0 && ctx.crowd[p] === 0 && d >= 2 && d <= 3) sc += 2 * early;
+  var cx = Math.min(x, n - 1 - x), cy = Math.min(y, n - 1 - y);
+  if (early > 0 && n > 9 && cx >= 2 && cx <= 4 && cy >= 2 && cy <= 4) sc += 1.2 * early;
+  var near = ctx.near[p];
+  if (near >= 5 && early < 0.6) { sc -= 1; pers += Math.max(0, bigm) * 1.2; }
+  if (ctx.last >= 0) {
+    var lx = ctx.last % n, ly = (ctx.last / n) | 0, dl = Math.abs(lx - x) + Math.abs(ly - y);
+    var loc = dl <= 2 ? 1.2 : dl <= 3 ? 0.4 : 0;
+    sc += loc; pers -= loc * 0.9 * bigm;
+  }
+  /* Big moves: open areas of the board, away from existing stones */
+  if (bigm > 0 && d >= 2) pers += bigm * (ctx.crowd[p] === 0 ? 2 : ctx.crowd[p] <= 2 ? 0.8 : 0);
+  /* Fighting spirit: contact and pressure vs. solid shape */
+  if (oppN > 0) pers += 1.2 * spirit;
+  else if (ownN > 0) pers -= 0.6 * spirit;
+  if (oppN === 0 && near === 2 && spirit > 0) pers += 0.5 * spirit;
+  if (ownN >= 3) sc -= 2; else if (ownN === 2 && oppN === 0) sc -= 0.6;
+  if (ctx.own) {
+    var ov = c === 1 ? ctx.own[p] : -ctx.own[p], aa = Math.abs(ov);
+    if (aa > 0.8) sc -= 7; else if (aa > 0.6) sc -= 3;
+    sc += 2.5 * (1 - aa);
+    /* Risk: daring invades the opponent's sphere, safe reinforces its own weak spots */
+    if (ov < -0.3) pers += risk * (ov < -0.8 ? 0.7 : 1.6);
+    else if (ov < 0.4 && ownN > 0) pers -= 1.0 * risk;
+  }
+  return { p: p, sc: sc + tac, tac: tac, pers: pers, f: 0 };
+}
+
+/* Cheap prior for moves inside the search tree: 0..1 */
+function quickPrior(t, g, p, c, last, early) {
+  var n = g.n, d = g.line[p], v = 0.5;
+  if (d === 0) v -= 0.18 * (0.4 + 0.6 * early); else if (d === 1) v -= 0.04; else if (d <= 3) v += 0.04;
+  if (last >= 0) {
+    var dl = Math.abs(last % n - p % n) + Math.abs(((last / n) | 0) - ((p / n) | 0));
+    if (dl <= 2) v += 0.1;
+  }
+  var L = moveInfo(t, g, p, c);
+  if (g.miCap > 0) v += 0.3;
+  if (g.miSave > 0 && L >= 2) v += 0.2;
+  if (L === 1 && g.miCap === 0) v -= 0.3;
+  return Math.max(0.05, Math.min(0.95, v));
+}
+
+/* Monte Carlo tree search with RAVE. rootCands: [{p, sc}] from evalPoint. */
+function mcts(b, g, c, ko, komi, last, rootCands, sims, timeCap, rng, early) {
+  var n2 = g.n2, n = g.n, t = new Int8Array(n2), amaf = new Int8Array(n2);
+  var EXPAND = n <= 9 ? 3 : 6, MAXKIDS = n <= 9 ? 81 : 45, PRIOR_N = 12;
+  function mk(p, col, pv) { return { p: p, c: col, N: PRIOR_N, W: PRIOR_N * pv, rN: 0, rW: 0, v: 0, kids: null }; }
+  var root = { p: -1, c: 3 - c, N: 0, W: 0, rN: 0, rW: 0, v: 0, kids: [] };
+  rootCands.forEach(function (e) { var kd = mk(e.p, c, 0.5 + 0.4 * Math.tanh(e.sc / 8)); kd.pers = e.pers || 0; root.kids.push(kd); });
+  function expand(node, tb, col, k, lastMv) {
+    var kids = [];
+    for (var p = 0; p < n2; p++) {
+      if (tb[p] || p === k || isEye(tb, g, p, col)) continue;
+      var L = moveInfo(tb, g, p, col);
+      if (L === 0) continue;
+      kids.push(mk(p, col, quickPrior(tb, g, p, col, lastMv, early)));
+    }
+    if (kids.length > MAXKIDS) { kids.sort(function (a, b2) { return b2.W - a.W; }); kids.length = MAXKIDS; }
+    node.kids = kids;
+  }
+  function select(node) {
+    var best = null, bv = -1e9, lnN = Math.log(node.N + 1), kids = node.kids;
+    for (var i = 0; i < kids.length; i++) {
+      var ch = kids[i];
+      var beta = ch.rN / (ch.rN + ch.N + ch.rN * ch.N / 2500 + 1e-9);
+      var q = ch.W / ch.N, r = ch.rN ? ch.rW / ch.rN : 0.5;
+      var val = (1 - beta) * q + beta * r + 0.15 * Math.sqrt(lnN / (ch.N + 1));
+      if (val > bv) { bv = val; best = ch; }
+    }
+    return best;
+  }
+  var T0 = nowMs(), path = [], it;
+  for (it = 0; it < sims; it++) {
+    if ((it & 31) === 0 && nowMs() - T0 > timeCap) break;
+    t.set(b); amaf.fill(0);
+    var k = ko, col = c, node = root, lastMv = last;
+    path.length = 0; path.push(root);
+    while (node.kids && node.kids.length) {
+      var ch = select(node);
+      if (play(t, g, ch.p, col, k) < 0) { ch.W = 0; ch.N += 50; break; }
+      k = g.newKo; if (!amaf[ch.p]) amaf[ch.p] = col; lastMv = ch.p;
+      path.push(ch); node = ch; col = 3 - col;
+      if (!node.kids && node.v >= EXPAND) { expand(node, t, col, k, lastMv); }
+    }
+    heavyPlayout(t, g, col, k, lastMv, rng, n2 * 2, amaf);
+    var s = finalScore(t, g, komi);
+    var valB = (s > 0 ? 0.9 : 0) + 0.1 * (0.5 + 0.5 * Math.tanh(s / n));
+    for (var j = 0; j < path.length; j++) {
+      var nd = path[j];
+      nd.N++; nd.v++; nd.W += nd.c === 1 ? valB : 1 - valB;
+      if (nd.kids) {
+        for (var m = 0; m < nd.kids.length; m++) {
+          var kd = nd.kids[m];
+          if (amaf[kd.p] === kd.c) { kd.rN++; kd.rW += kd.c === 1 ? valB : 1 - valB; }
+        }
+      }
+    }
+  }
+  var kids = root.kids.slice().sort(function (a, b2) { return b2.v - a.v || b2.W / b2.N - a.W / a.N; });
+  return { kids: kids, sims: it, rootQ: kids.length ? kids[0].W / kids[0].N : 0.5 };
+}
+
+/* s.ai = {sims, mistakes, tactics, style, spirit}; s.hint = true for the hint button */
+function genMove(s) {
+  var n = s.n, g = geom(n), n2 = g.n2, b = Int8Array.from(s.b), c = s.toMove;
+  var ai = s.ai || presetAI(5), hint = !!s.hint;
+  if (hint) ai = { sims: n <= 9 ? 3000 : 1500, mistakes: 0, tactics: 1, style: 0, spirit: 0, big: 0, risk: 0 };
+  var rng = makeRng((Math.random() * 4294967296) >>> 0);
+  var early = Math.max(0, 1 - s.moveNum / (n2 * 0.22));
+  var own = null;
+  if (s.moveNum >= n2 * 0.1 || s.prevPass) {
+    var K = (n <= 9 ? 150 : n <= 13 ? 100 : 60) * (ai.sims ? 1 : 0.4 + 0.6 * ai.tactics);
+    own = estimate(b, g, c, s.ko, s.komi, Math.round(K), rng).own;
+  }
+  var ctx = { gm: new Int32Array(n2), gg: 0, atari: [], own: own, last: s.last, early: early, near: nearDist(b, g), crowd: crowd(b, g, 3), ai: ai };
+  var cands = [], p, e, i;
+  for (p = 0; p < n2; p++) {
+    if (b[p] || p === s.ko) continue;
+    if (isEye(b, g, p, c)) continue;
+    e = evalPoint(b, g, p, c, s.ko, ctx);
+    if (e) cands.push(e);
+  }
+  if (!cands.length) return { move: -1 };
+  var best = -1e9;
+  for (i = 0; i < cands.length; i++) if (cands[i].sc > best) best = cands[i].sc;
+  if (best < -1.5) return { move: -1 };
+  if (s.prevPass && own && best < 0.8) return { move: -1 };
+  var tactics = ai.tactics == null ? 1 : ai.tactics, mistakes = ai.mistakes || 0;
+  /* Blind spots: sometimes the computer doesn't see a tactical point */
+  for (i = 0; i < cands.length; i++) {
+    e = cands[i];
+    e.seen = e.sc;
+    if (tactics < 1 && rng() > tactics) e.seen = e.sc - e.tac * 0.75;
+  }
+  var pool = cands.filter(function (e) { return e.sc > -2; });
+  if (!ai.sims) {
+    var noise = 0.4 + mistakes * 16;
+    for (i = 0; i < pool.length; i++) pool[i].f = pool[i].seen + pool[i].pers + noise * (rng() * 2 - 1);
+    pool.sort(function (a, b2) { return b2.f - a.f; });
+    return { move: pool[0].p };
+  }
+  pool.sort(function (a, b2) { return b2.seen - a.seen; });
+  if (rng() < mistakes) {
+    var k2 = Math.min(pool.length, 5);
+    return { move: pool[(rng() * k2) | 0].p };
+  }
+  var root = pool.filter(function (e) { return e.seen > -4; }).slice(0, n <= 9 ? 60 : n <= 13 ? 50 : 40);
+  if (!root.length) return { move: pool[0].p };
+  /* personality only nudges the search priors a little; the tie-break below does the rest */
+  for (i = 0; i < root.length; i++) root[i].sc = root[i].seen + 0.25 * root[i].pers;
+  var sizeCap = n <= 9 ? 9000 : n <= 13 ? 6000 : 4500;
+  var cap = hint ? 2500 : Math.min(sizeCap, 800 + ai.sims * 0.6);
+  if (s.timeCap) cap = Math.min(cap, s.timeCap);
+  var r = mcts(b, g, c, s.ko, s.komi, s.last, root, ai.sims, cap, rng, early);
+  var pick = r.kids[0];
+  /* Personality tie-break: among moves nearly as good as the best, prefer the one that fits the style */
+  var mag = Math.max(Math.abs(ai.style || 0), Math.abs(ai.spirit || 0), Math.abs(ai.big || 0), Math.abs(ai.risk || 0));
+  if (mag > 0.05 && !hint) {
+    var top0 = r.kids[0], bq = top0.W / top0.N;
+    for (i = 1; i < r.kids.length; i++) {
+      var kd = r.kids[i];
+      if (kd.v >= 0.2 * top0.v && kd.W / kd.N >= bq - 0.04 * mag && (kd.pers || 0) > (pick.pers || 0) + 0.3) pick = kd;
+    }
+  }
+  return { move: pick.p, sims: r.sims, q: r.rootQ };
+}
+
+/* Exact area count after removing dead stones. owner: 1/2 stone, 3/4 Black/White territory, 0 neutral. */
+function areaScore(b0, g, dead) {
+  var n2 = g.n2, b = Int8Array.from(b0), i;
+  if (dead) for (i = 0; i < dead.length; i++) b[dead[i]] = 0;
+  var owner = new Int8Array(n2), seen = new Uint8Array(n2), q = new Int16Array(n2), bs = 0, ws = 0, bt = 0, wt = 0;
+  for (var p = 0; p < n2; p++) { if (b[p] === 1) { bs++; owner[p] = 1; } else if (b[p] === 2) { ws++; owner[p] = 2; } }
+  for (p = 0; p < n2; p++) {
+    if (b[p] || seen[p]) continue;
+    var h = 0, t = 0, touch = 0; q[t++] = p; seen[p] = 1;
+    while (h < t) {
+      var x = q[h++];
+      for (var k = 0; k < 4; k++) {
+        var r = g.nb[x * 4 + k]; if (r < 0) break;
+        var v = b[r];
+        if (v === 0) { if (!seen[r]) { seen[r] = 1; q[t++] = r; } } else touch |= v;
+      }
+    }
+    var who = touch === 1 ? 1 : touch === 2 ? 2 : 0;
+    for (i = 0; i < t; i++) owner[q[i]] = who ? who + 2 : 0;
+    if (who === 1) bt += t; else if (who === 2) wt += t;
+  }
+  return { bs: bs, ws: ws, bt: bt, wt: wt, owner: owner };
+}
+
+/* Mark counters live in Int32Arrays; reset them long before they could overflow. */
+function resetMarks(g) {
+  if (g.sg > 1e9) { g.sm.fill(0); g.sg = 0; }
+  if (g.lg > 1e9) { g.lm.fill(0); g.lg = 0; }
+  if (g.qg > 1e9) { g.qm.fill(0); g.qg = 0; }
+}
+function handle(type, d) {
+  resetMarks(geom(d.n));
+  if (type === "genmove") return genMove(d);
+  if (type === "ownership") {
+    var g = geom(d.n), r = estimate(Int8Array.from(d.b), g, d.toMove, d.ko, d.komi, d.playouts, makeRng((Math.random() * 4294967296) >>> 0));
+    return { own: Array.from(r.own), score: r.score };
+  }
+  return null;
+}
+</script>
+
+<script>
+"use strict";
+(function () {
+  var $ = function (s) { return document.querySelector(s); };
+  var $$ = function (s) { return Array.prototype.slice.call(document.querySelectorAll(s)); };
+  var store = {
+    get: function (k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  var LETTERS = "ABCDEFGHJKLMNOPQRST";
+  var LEVEL_INFO = [null,
+    ["Brand new", "Wanders around and often misses captures."],
+    ["Learning", "Plays loosely and misses many ataris."],
+    ["Relaxed", "Knows the basics but still blunders often."],
+    ["Casual", "Sees most captures but has no plan."],
+    ["Steady", "Rarely misses simple tactics. Doesn't read ahead."],
+    ["Thinking", "Starts reading ahead. Quick replies."],
+    ["Solid", "Reads further. About a second per move on 9×9."],
+    ["Sharp", "Fewer slack moves. A second or two per move."],
+    ["Strong", "Careful and patient. A few seconds per move."],
+    ["Strongest", "The most reading. Slowest replies."]
+  ];
+  var SIM_STEPS = [0, 250, 500, 1000, 1500, 2500, 3500, 5000, 8000, 12000, 16000, 24000];
+  var DEFAULTS = { size: 9, mode: "ai", color: "black", handicap: 0, komi: 6.5, confirm: "large", coords: true, sound: false,
+    ai: presetAI(3), autoAdjust: true, rules: "japanese" };
+  var settings = Object.assign({}, DEFAULTS, store.get("qg.settings") || {});
+  if (!settings.ai || typeof settings.ai.sims !== "number") settings.ai = presetAI(typeof settings.level === "number" ? [3, 4, 5][settings.level] || 5 : 6);
+  delete settings.level;
+  var stats = store.get("qg.stats") || {};
+
+  var G = null;      // persisted game record
+  var P = null;      // derived position
+  var score = null;  // area score during counting
+  var thinking = false, aiToken = 0, busyMsg = null;
+  var note = "";     // transient status message
+  var hint = -1, overlay = null, pending = -1, hover = -1, counting = false;
+
+  /* ---------- background engine ---------- */
+  var worker = null, workerURL = null, reqs = {}, reqId = 0;
+  function safeHandle(type, data) {
+    try { return handle(type, data); } catch (e) { return { error: String(e && e.message || e) }; }
+  }
+  function runLocal(type, data) {
+    /* No worker: keep the page responsive by thinking for at most a moment */
+    if (type === "genmove") data = Object.assign({}, data, { timeCap: 700 });
+    return safeHandle(type, data);
+  }
+  function startWorker() {
+    try {
+      if (!workerURL) {
+        var src = document.getElementById("engine").textContent +
+          "\nonmessage=function(e){var r;try{r=handle(e.data.type,e.data.data);}catch(err){r={error:String(err&&err.message||err)};}postMessage({id:e.data.id,res:r});};";
+        workerURL = URL.createObjectURL(new Blob([src], { type: "text/javascript" }));
+      }
+      worker = new Worker(workerURL);
+      worker.onmessage = function (e) { var r = reqs[e.data.id]; delete reqs[e.data.id]; if (r) r.res(e.data.res || { error: "empty" }); };
+      worker.onerror = function () {
+        worker = null;
+        Object.keys(reqs).forEach(function (id) { var r = reqs[id]; delete reqs[id]; setTimeout(function () { r.res(runLocal(r.type, r.data)); }, 10); });
+      };
+    } catch (e) { worker = null; }
+  }
+  startWorker();
+  /* Stop whatever the worker is computing (a cancelled move) so the next request starts right away. */
+  function restartWorker() {
+    if (!worker || !Object.keys(reqs).length) return;
+    try { worker.terminate(); } catch (e) {}
+    Object.keys(reqs).forEach(function (id) { var r = reqs[id]; delete reqs[id]; r.res({ cancelled: true }); });
+    startWorker();
+  }
+  function engine(type, data) {
+    return new Promise(function (res) {
+      if (worker) { var id = ++reqId; reqs[id] = { res: res, type: type, data: data }; worker.postMessage({ id: id, type: type, data: data }); }
+      else setTimeout(function () { res(runLocal(type, data)); }, 30);
+    });
+  }
+  var posToken = 0;   /* bumps whenever the position changes, so late answers about an old position are dropped */
+
+  /* ---------- strength helpers ---------- */
+  function isCustom(ai) {
+    var p = presetAI(ai.level);
+    return ai.sims !== p.sims || Math.abs(ai.mistakes - p.mistakes) > 0.004 || Math.abs(ai.tactics - p.tactics) > 0.004;
+  }
+  function persText(ai) {
+    var bits = [];
+    if (Math.abs(ai.style) >= 0.05) bits.push(lean(ai.style * 100, "territory", "centre").toLowerCase());
+    if (Math.abs(ai.spirit) >= 0.05) bits.push(lean(ai.spirit * 100, "calm", "aggressive").toLowerCase());
+    if (Math.abs(ai.big) >= 0.05) bits.push(lean(ai.big * 100, "local", "big moves").toLowerCase());
+    if (Math.abs(ai.risk) >= 0.05) bits.push(lean(ai.risk * 100, "safe", "daring").toLowerCase());
+    return bits.join(", ");
+  }
+  function withPers(base, ai) { var t = persText(ai); return t ? base + " · " + t : base; }
+  function aiLabel(ai) { return isCustom(ai) ? "Custom (from level " + ai.level + ")" : "Level " + ai.level + " · " + LEVEL_INFO[ai.level][0]; }
+  function keepPers(to, from) { to.style = from.style || 0; to.spirit = from.spirit || 0; to.big = from.big || 0; to.risk = from.risk || 0; return to; }
+  function aiShort(ai) { return isCustom(ai) ? "Custom" : "Level " + ai.level; }
+  function cloneAI(ai) { return { level: ai.level, sims: ai.sims, mistakes: ai.mistakes, tactics: ai.tactics, style: ai.style || 0, spirit: ai.spirit || 0, big: ai.big || 0, risk: ai.risk || 0 }; }
+
+  /* ---------- game model ---------- */
+  function handicapPoints(n, h) {
+    if (!h) return [];
+    var e = n >= 13 ? 3 : 2, m = (n - 1) / 2, f = n - 1 - e;
+    var at = function (x, y) { return y * n + x; };
+    var corners = [at(f, e), at(e, f), at(f, f), at(e, e)];
+    var L = at(e, m), R = at(f, m), T = at(m, e), B = at(m, f), C = at(m, m);
+    var sets = { 2: corners.slice(0, 2), 3: corners.slice(0, 3), 4: corners, 5: corners.concat([C]),
+      6: corners.concat([L, R]), 7: corners.concat([L, R, C]), 8: corners.concat([L, R, T, B]), 9: corners.concat([L, R, T, B, C]) };
+    return sets[h] || [];
+  }
+  function today() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function newGame(cfg) {
+    var n = +cfg.size, hc = Math.min(+cfg.handicap, n <= 9 ? 5 : 9);
+    var human = 0;
+    if (cfg.mode === "ai") human = hc > 0 ? 1 : cfg.color === "white" ? 2 : cfg.color === "random" ? (Math.random() < 0.5 ? 1 : 2) : 1;
+    return { v: 2, n: n, mode: cfg.mode, rules: cfg.rules === "japanese" ? "japanese" : "chinese", ai: cloneAI(cfg.ai), human: human, handicap: hc, komi: hc > 0 ? 0.5 : +cfg.komi,
+      setup: handicapPoints(n, hc).map(function (p) { return { p: p, c: 1 }; }), first: hc > 0 ? 2 : 1,
+      moves: [], phase: "play", dead: [], result: null, date: today(), names: null };
+  }
+  function migrate(s) {
+    if (!s || typeof s !== "object" || !Array.isArray(s.moves) || !(s.n >= 5 && s.n <= 19)) return null;
+    if (s.v === 1) {
+      s.ai = presetAI([3, 4, 5][s.level] || 5); delete s.level;
+      s.setup = (s.setup || []).map(function (p) { return { p: p, c: 1 }; });
+      s.first = s.setup.length ? 2 : 1; s.date = today(); s.names = null; s.v = 2;
+    }
+    if (s.v !== 2) return null;
+    if (!s.ai || typeof s.ai.sims !== "number") s.ai = presetAI(6);
+    s.ai = cloneAI(s.ai);
+    if (s.rules !== "japanese") s.rules = "chinese";
+    return s;
+  }
+  function rebuild() {
+    var g = geom(G.n), b = new Int8Array(g.n2), i;
+    for (i = 0; i < G.setup.length; i++) b[G.setup[i].p] = G.setup[i].c;
+    var ko = -1, toMove = G.first || 1, cap = [0, 0, 0], last = -1, passes = 0, lastPass = 0;
+    for (i = 0; i < G.moves.length; i++) {
+      var m = G.moves[i];
+      if (m.p === -2) { passes = 0; continue; }
+      if (m.p < 0) { ko = -1; passes++; last = -1; lastPass = m.c; }
+      else {
+        var r = play(b, g, m.p, m.c, ko);
+        if (r < 0) { G.moves.length = i; break; }
+        cap[m.c] += r; ko = g.newKo; passes = 0; last = m.p; lastPass = 0;
+      }
+      toMove = 3 - m.c;
+    }
+    P = { b: b, ko: ko, toMove: toMove, cap: cap, last: last, passes: passes, lastPass: lastPass };
+  }
+  function moveCount() { var c = 0; for (var i = 0; i < G.moves.length; i++) if (G.moves[i].p !== -2) c++; return c; }
+  function stateFor(c, hintMode) {
+    return { n: G.n, b: P.b, ko: P.ko, toMove: c, komi: G.komi, last: P.last, moveNum: moveCount() + G.setup.length,
+      prevPass: P.passes > 0, ai: G.ai, hint: !!hintMode };
+  }
+  function isHumanTurn() { return G.phase === "play" && (G.mode === "local" || P.toMove === G.human); }
+  function save() { store.set("qg.game", G); }
+  function colorName(c) { return c === 1 ? "Black" : "White"; }
+
+  function commit(m) {
+    G.moves.push(m);
+    rebuild(); posToken++;
+    hint = -1; overlay = null; pending = -1; busyMsg = null; passArmed = false;
+    if (m.p >= 0) click();
+    save();
+    if (P.passes >= 2) { startCounting(); return; }
+    next();
+  }
+  function next() {
+    updateUI();
+    if (G.phase === "play" && G.mode === "ai" && P.toMove !== G.human) aiTurn();
+  }
+  function aiTurn() {
+    var token = ++aiToken, t0 = nowMs();
+    thinking = true; updateUI();
+    engine("genmove", stateFor(P.toMove, false)).then(function (res) {
+      if (token !== aiToken) return;
+      var wait = Math.max(0, 550 - (nowMs() - t0));
+      setTimeout(function () {
+        if (token !== aiToken) return;
+        thinking = false;
+        if (res && res.cancelled) return;
+        if (!res || res.error) {
+          /* Something went wrong in the engine: fall back to a simple, safe move choice */
+          var fb = safeHandle("genmove", Object.assign(stateFor(P.toMove, false), { ai: presetAI(5) }));
+          res = fb && !fb.error ? fb : { move: -1 };
+        }
+        var mv = typeof res.move === "number" ? res.move : -1;
+        if (mv >= 0) { var t = Int8Array.from(P.b); if (play(t, geom(G.n), mv, P.toMove, P.ko) < 0) mv = -1; }
+        commit({ p: mv, c: P.toMove });
+      }, wait);
+    });
+  }
+  function cancelAI() { aiToken++; posToken++; thinking = false; busyMsg = null; restartWorker(); }
+
+  function tryMove(p) {
+    if (!isHumanTurn() || thinking) return;
+    if (P.b[p]) { note = "That point is already taken."; updateUI(); return; }
+    if (p === P.ko) { note = "That's ko. You can't take back right away, so play somewhere else first."; updateUI(); return; }
+    var t = Int8Array.from(P.b);
+    if (play(t, geom(G.n), p, P.toMove, P.ko) < 0) { note = "A stone there would have no liberties, so it isn't allowed."; updateUI(); return; }
+    note = "";
+    commit({ p: p, c: P.toMove });
+  }
+  var passArmed = false;
+  function doPass() {
+    if (!isHumanTurn() || thinking) return;
+    if (G.mode === "local" && P.passes > 0 && !passArmed) {
+      passArmed = true; note = "Black and White would both have passed. Tap Pass again to end the game and count."; updateUI(); return;
+    }
+    note = "";
+    commit({ p: -1, c: P.toMove });
+  }
+  function doUndo() {
+    if (!canUndo()) return;
+    cancelAI();
+    if (G.mode === "local") { while (G.moves.length && G.moves[G.moves.length - 1].p === -2) G.moves.pop(); G.moves.pop(); }
+    else { while (G.moves.length) { var m = G.moves.pop(); if (m.c === G.human && m.p !== -2) break; } }
+    rebuild(); posToken++; hint = -1; overlay = null; pending = -1; passArmed = false; note = "Move taken back.";
+    save(); next();
+  }
+  function canUndo() {
+    if (G.phase !== "play") return false;
+    if (G.mode === "local") return G.moves.some(function (m) { return m.p !== -2; });
+    return G.moves.some(function (m) { return m.c === G.human && m.p !== -2; });
+  }
+  function doHint() {
+    if (!isHumanTurn() || thinking || busyMsg) return;
+    busyMsg = "Looking for a good move…"; updateUI();
+    var token = posToken;
+    engine("genmove", stateFor(P.toMove, true)).then(function (res) {
+      if (token !== posToken) return;
+      busyMsg = null;
+      if (!isHumanTurn() || !res || res.error || res.cancelled) { if (res && res.error) note = "No hint this time."; updateUI(); return; }
+      if (res.move < 0) { hint = -1; note = "Nothing big is left. Passing looks fine."; }
+      else { hint = res.move; note = "Try the marked point."; }
+      updateUI();
+    });
+  }
+  function doAhead() {
+    if (busyMsg || G.phase !== "play") return;
+    closeSheets();
+    busyMsg = "Counting roughly…"; updateUI();
+    var playouts = G.n <= 9 ? 300 : G.n <= 13 ? 200 : 120, token = posToken;
+    engine("ownership", { n: G.n, b: P.b, toMove: P.toMove, ko: P.ko, komi: G.komi, playouts: playouts }).then(function (res) {
+      if (token !== posToken) return;
+      busyMsg = null;
+      if (G.phase !== "play" || !res || !res.own) { updateUI(); return; }
+      overlay = res.own;
+      var lead = Math.round(Math.abs(res.score));
+      var leader = res.score > 0 ? 1 : 2;
+      if (lead < 2) note = "Rough guess: it's very close. Tap the board to hide the shading.";
+      else note = "Rough guess: " + (G.mode === "local" ? colorName(leader) + " leads" : (leader === G.human ? "you lead" : "the computer leads")) + " by about " + lead + ". Tap the board to hide the shading.";
+      updateUI();
+    });
+  }
+
+  /* ---------- counting ---------- */
+  function startCounting() {
+    cancelAI();
+    G.phase = "score"; G.dead = []; G.counted = false; counting = true; score = null; note = "";
+    save(); updateUI();
+    var playouts = G.n <= 9 ? 400 : G.n <= 13 ? 260 : 160;
+    engine("ownership", { n: G.n, b: P.b, toMove: P.toMove, ko: -1, komi: G.komi, playouts: playouts }).then(function (res) {
+      if (G.phase !== "score") return;
+      G.dead = res && res.own ? guessDead(res.own) : []; G.counted = true; counting = false;
+      recount(); save(); updateUI();
+    });
+  }
+  function guessDead(own) {
+    var g = geom(G.n), seen = new Uint8Array(g.n2), dead = [];
+    for (var p = 0; p < g.n2; p++) {
+      if (!P.b[p] || seen[p]) continue;
+      scan(P.b, g, p);
+      var stones = Array.from(g.st.subarray(0, g.ns)), sum = 0, c = P.b[p];
+      stones.forEach(function (q) { seen[q] = 1; sum += c === 1 ? own[q] : -own[q]; });
+      if (sum / stones.length < -0.25) dead = dead.concat(stones);
+    }
+    return dead;
+  }
+  function recount() { score = areaScore(P.b, geom(G.n), G.dead); }
+  function toggleDead(p) {
+    if (!P.b[p] || counting) return;
+    var g = geom(G.n); scan(P.b, g, p);
+    var stones = Array.from(g.st.subarray(0, g.ns)), set = new Set(G.dead);
+    var allDead = stones.every(function (q) { return set.has(q); });
+    stones.forEach(function (q) { if (allDead) set.delete(q); else set.add(q); });
+    G.dead = Array.from(set); recount(); save(); updateUI();
+  }
+  function totals() {
+    if (G.rules === "japanese") {
+      /* territory + prisoners (captures during play and dead stones removed at the end) */
+      var deadB = 0, deadW = 0;
+      G.dead.forEach(function (p) { if (P.b[p] === 1) deadB++; else if (P.b[p] === 2) deadW++; });
+      return { b: score.bt + P.cap[1] + deadW, w: score.wt + P.cap[2] + deadB + G.komi };
+    }
+    return { b: score.bs + score.bt, w: score.ws + score.wt + G.komi };
+  }
+  function fmt(x) { return (Math.round(x * 10) / 10).toString(); }
+  function acceptScore() {
+    if (!score || counting) return;
+    var t = totals(), winner = t.b > t.w ? 1 : t.w > t.b ? 2 : 0, margin = Math.abs(t.b - t.w);
+    finish(winner, margin);
+  }
+  function resign() {
+    if (G.phase === "done") return;
+    cancelAI();
+    var loser = G.mode === "local" ? P.toMove : G.human;
+    finish(3 - loser, null);
+  }
+  function finish(winner, margin) {
+    G.phase = "done"; G.result = { winner: winner, margin: margin, next: null };
+    /* A resignation in the first few moves doesn't count toward the record or auto-adjust */
+    var counts = G.mode === "ai" && winner !== 0 && !(margin == null && moveCount() < 10);
+    if (counts) {
+      var key = G.n + "|" + (isCustom(G.ai) ? "c" : G.ai.level), s = stats[key] || { w: 0, l: 0 };
+      if (winner === G.human) s.w++; else s.l++;
+      stats[key] = s; store.set("qg.stats", stats);
+      if (settings.autoAdjust && !isCustom(G.ai)) {
+        var lv = Math.max(1, Math.min(10, G.ai.level + (winner === G.human ? 1 : -1)));
+        if (lv !== G.ai.level) { settings.ai = keepPers(presetAI(lv), G.ai); store.set("qg.settings", settings); G.result.next = lv; }
+      }
+    }
+    hint = -1; overlay = null; note = "";
+    save(); closeSheets(); updateUI();
+  }
+  function resultText() {
+    var r = G.result; if (!r) return "";
+    if (r.winner === 0) return "<b>It's a draw (jigo).</b>";
+    var by = r.margin == null ? " by resignation" : " by " + fmt(r.margin);
+    var nx = r.next ? " Next game: level " + r.next + "." : "";
+    if (G.mode === "local") return "<b>" + colorName(r.winner) + " wins" + by + ".</b>";
+    return (r.winner === G.human ? "<b>You win" + by + ".</b> Nice game." : "<b>The computer wins" + by + ".</b>") + nx;
+  }
+
+  /* ---------- SGF ---------- */
+  function sgfEsc(s) { return String(s).replace(/\\/g, "\\\\").replace(/]/g, "\\]"); }
+  function sgfPt(p) { var n = G.n; return String.fromCharCode(97 + (p % n)) + String.fromCharCode(97 + Math.floor(p / n)); }
+  function playerNames() {
+    if (G.names) return G.names;
+    if (G.mode === "local") return { b: "Black", w: "White" };
+    var comp = "Quiet Go (" + aiShort(G.ai) + ")";
+    return G.human === 1 ? { b: "You", w: comp } : { b: comp, w: "You" };
+  }
+  function toSgf() {
+    var nm = playerNames();
+    var h = "(;GM[1]FF[4]CA[UTF-8]AP[Quiet Go:2]SZ[" + G.n + "]KM[" + G.komi + "]RU[" + (G.rules === "japanese" ? "Japanese" : "Chinese") + "]DT[" + (G.date || today()) + "]" +
+      "PB[" + sgfEsc(nm.b) + "]PW[" + sgfEsc(nm.w) + "]";
+    if (G.handicap) h += "HA[" + G.handicap + "]";
+    var ab = G.setup.filter(function (s) { return s.c === 1; }), aw = G.setup.filter(function (s) { return s.c === 2; });
+    if (ab.length) h += "AB" + ab.map(function (s) { return "[" + sgfPt(s.p) + "]"; }).join("");
+    if (aw.length) h += "AW" + aw.map(function (s) { return "[" + sgfPt(s.p) + "]"; }).join("");
+    if (G.setup.length && !G.moves.length) h += "PL[" + (G.first === 2 ? "W" : "B") + "]";
+    if (G.result) h += "RE[" + (G.result.winner === 0 ? "0" : (G.result.winner === 1 ? "B+" : "W+") + (G.result.margin == null ? "R" : fmt(G.result.margin))) + "]";
+    var body = "", count = 0;
+    G.moves.forEach(function (m) {
+      if (m.p === -2) return;
+      body += ";" + (m.c === 1 ? "B" : "W") + "[" + (m.p < 0 ? "" : sgfPt(m.p)) + "]";
+      if (++count % 10 === 0) body += "\n";
+    });
+    return h + "\n" + body + ")\n";
+  }
+  /* Parse the main line of an SGF game into a game record. Throws Error with a friendly message. */
+  function parseSgf(text) {
+    var mStart = /\(\s*;/.exec(text), i = mStart ? mStart.index : -1;
+    if (i < 0) throw new Error("That doesn't look like an SGF game record. It should start with (;");
+    var nodes = [], depth = 0, cur = null, skipDepth = -1, len = text.length;
+    for (; i < len; i++) {
+      var ch = text[i];
+      if (ch === "[") {
+        var j = i + 1, val = "";
+        while (j < len && text[j] !== "]") { if (text[j] === "\\") j++; val += text[j]; j++; }
+        if (cur && skipDepth < 0 && cur.key) { (cur.props[cur.key] = cur.props[cur.key] || []).push(val); }
+        i = j; continue;
+      }
+      if (ch === "(") {
+        depth++;
+        if (skipDepth < 0 && depth > 1 && cur && cur.done) skipDepth = depth;
+        continue;
+      }
+      if (ch === ")") {
+        if (skipDepth === depth) skipDepth = -1;
+        if (skipDepth < 0 && cur) cur.done = true;
+        depth--; if (depth <= 0) break; continue;
+      }
+      if (skipDepth >= 0) continue;
+      if (ch === ";") { cur = { props: {}, key: null, done: false }; nodes.push(cur); continue; }
+      if (/[A-Za-z]/.test(ch) && cur) {
+        var k = "";
+        while (i < len && /[A-Za-z]/.test(text[i])) { if (/[A-Z]/.test(text[i])) k += text[i]; i++; }
+        i--; cur.key = k;
+      }
+    }
+    if (!nodes.length) throw new Error("No game found in that text.");
+    var root = nodes[0].props;
+    var szs = root.SZ ? root.SZ[0].split(":") : ["19"];
+    if (szs.length > 1 && parseInt(szs[0], 10) !== parseInt(szs[1], 10)) throw new Error("Only square boards are supported.");
+    var n = parseInt(szs[0], 10);
+    if (!(n >= 5 && n <= 19)) throw new Error("Board size " + (root.SZ ? root.SZ[0] : "?") + " isn't supported. Boards from 5×5 to 19×19 work.");
+    function pt(s) {
+      if (!s || (s === "tt" && n <= 19)) return -1;
+      if (!/^[a-s]{2}$/.test(s)) return -3;
+      var x = s.charCodeAt(0) - 97, y = s.charCodeAt(1) - 97;
+      if (x < 0 || y < 0 || x >= n || y >= n) return -3;
+      return y * n + x;
+    }
+    function expand(list) {
+      var out = [];
+      (list || []).forEach(function (v) {
+        if (v.indexOf(":") > 0) {
+          var a = v.split(":"), x1 = a[0].charCodeAt(0) - 97, y1 = a[0].charCodeAt(1) - 97, x2 = a[1].charCodeAt(0) - 97, y2 = a[1].charCodeAt(1) - 97;
+          for (var y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) for (var x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) if (x < n && y < n) out.push(y * n + x);
+        } else { var p = pt(v); if (p >= 0) out.push(p); }
+      });
+      return out;
+    }
+    var setup = [], moves = [], first = 0;
+    nodes.forEach(function (nd, idx) {
+      var pr = nd.props;
+      if (pr.AB || pr.AW || pr.AE) {
+        if (moves.length) return;   /* mid-game edits aren't supported; ignore */
+        var rm = new Set(expand(pr.AE));
+        setup = setup.filter(function (s) { return !rm.has(s.p); });
+        expand(pr.AB).forEach(function (p) { setup = setup.filter(function (s) { return s.p !== p; }); setup.push({ p: p, c: 1 }); });
+        expand(pr.AW).forEach(function (p) { setup = setup.filter(function (s) { return s.p !== p; }); setup.push({ p: p, c: 2 }); });
+      }
+      if (pr.PL && !moves.length) first = /^w/i.test(pr.PL[0]) ? 2 : 1;
+      ["B", "W"].forEach(function (c) {
+        if (!pr[c]) return;
+        var p = pt(pr[c][0]);
+        if (p === -3) return;
+        moves.push({ p: p, c: c === "B" ? 1 : 2 });
+      });
+    });
+    if (!first) first = moves.length ? moves[0].c : (setup.length && setup.every(function (s) { return s.c === 1; }) ? 2 : 1);
+    var ha = root.HA ? parseInt(root.HA[0], 10) || 0 : 0;
+    var komi = root.KM ? parseFloat(root.KM[0]) : (ha >= 2 ? 0.5 : 6.5); if (!isFinite(komi)) komi = 6.5;
+    var names = { b: root.PB ? root.PB[0] : "Black", w: root.PW ? root.PW[0] : "White" };
+    var rules = root.RU && /jap|korea/i.test(root.RU[0]) ? "japanese" : root.RU ? "chinese" : settings.rules;
+    return { n: n, komi: komi, handicap: ha, setup: setup, moves: moves, first: first, names: names, rules: rules, date: root.DT ? root.DT[0] : today() };
+  }
+
+  /* ---------- sound (off by default) ---------- */
+  var actx = null;
+  function initAudio() {
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = "ambient";
+      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state === "suspended") actx.resume();
+    } catch (e) { actx = null; }
+  }
+  function click() {
+    if (!settings.sound || !actx) return;
+    try {
+      var len = Math.floor(actx.sampleRate * 0.06), buf = actx.createBuffer(1, len, actx.sampleRate), d = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 7);
+      var s = actx.createBufferSource(); s.buffer = buf;
+      var f = actx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 2100; f.Q.value = 1.4;
+      var gn = actx.createGain(); gn.gain.value = 0.5;
+      s.connect(f); f.connect(gn); gn.connect(actx.destination); s.start();
+    } catch (e) {}
+  }
+
+  /* ---------- drawing ---------- */
+  var canvas = $("#board"), ctx2d = canvas.getContext("2d"), wood = null, woodKey = "";
+  function lay() {
+    var W = canvas.width, n = G.n, marg = settings.coords ? 1.1 : 0.7;
+    var cell = W / (n - 1 + 2 * marg);
+    return { W: W, cell: cell, o: marg * cell };
+  }
+  function xy(p, L) { return [L.o + (p % G.n) * L.cell, L.o + Math.floor(p / G.n) * L.cell]; }
+  function starPoints(n) {
+    if (n < 7) return [];
+    var e = n >= 13 ? 3 : 2, f = n - 1 - e, s = [[e, e], [e, f], [f, e], [f, f]];
+    if (n % 2) { var m = (n - 1) / 2; s.push([m, m]); if (n >= 15) s = s.concat([[e, m], [f, m], [m, e], [m, f]]); }
+    return s;
+  }
+  function makeWood(W) {
+    var c = document.createElement("canvas"); c.width = c.height = W;
+    var x = c.getContext("2d"), gr = x.createLinearGradient(0, 0, W, W);
+    gr.addColorStop(0, "#E6BA72"); gr.addColorStop(0.5, "#DDAE62"); gr.addColorStop(1, "#CF9C4E");
+    x.fillStyle = gr; x.fillRect(0, 0, W, W);
+    var rng = makeRng(20261106);
+    for (var i = 0; i < 90; i++) {
+      var y0 = rng() * W, amp = 2 + rng() * 6, fr = 0.002 + rng() * 0.004, ph = rng() * 6.28;
+      x.beginPath();
+      for (var px = 0; px <= W; px += 8) { var yy = y0 + Math.sin(px * fr + ph) * amp + Math.sin(px * fr * 3.1 + ph) * amp * 0.3; if (px === 0) x.moveTo(px, yy); else x.lineTo(px, yy); }
+      x.strokeStyle = "rgba(125,72,20," + (0.03 + rng() * 0.07).toFixed(3) + ")";
+      x.lineWidth = 0.6 + rng() * 2.2 * (W / 800);
+      x.stroke();
+    }
+    return c;
+  }
+  function stoneAt(x, y, r, c, alpha) {
+    var g = ctx2d;
+    g.save(); g.globalAlpha = alpha;
+    if (alpha >= 1) { g.shadowColor = "rgba(40,20,0,0.38)"; g.shadowBlur = r * 0.35; g.shadowOffsetX = r * 0.07; g.shadowOffsetY = r * 0.13; }
+    var gr = g.createRadialGradient(x - r * 0.35, y - r * 0.38, r * 0.05, x, y, r);
+    if (c === 1) { gr.addColorStop(0, "#707070"); gr.addColorStop(0.35, "#262626"); gr.addColorStop(1, "#050505"); }
+    else { gr.addColorStop(0, "#FFFFFF"); gr.addColorStop(0.6, "#EFEDE7"); gr.addColorStop(1, "#BDB8AD"); }
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    g.restore();
+  }
+  function draw() {
+    if (!G || !P) return;
+    var W = canvas.width; if (!W) return;
+    var g = ctx2d, n = G.n, L = lay(), cell = L.cell, o = L.o, i, p, x, y;
+    if (woodKey !== String(W)) { wood = makeWood(W); woodKey = String(W); }
+    g.clearRect(0, 0, W, W); g.drawImage(wood, 0, 0);
+    var end = o + (n - 1) * cell, lw = Math.max(1, cell * 0.035);
+    g.strokeStyle = "rgba(48,30,10,0.85)"; g.lineWidth = lw; g.beginPath();
+    for (i = 0; i < n; i++) { var v = o + i * cell; g.moveTo(o, v); g.lineTo(end, v); g.moveTo(v, o); g.lineTo(v, end); }
+    g.stroke();
+    g.lineWidth = lw * 1.8; g.strokeRect(o, o, end - o, end - o);
+    g.fillStyle = "rgba(48,30,10,0.9)";
+    starPoints(n).forEach(function (s) { g.beginPath(); g.arc(o + s[0] * cell, o + s[1] * cell, Math.max(2, cell * 0.1), 0, 7); g.fill(); });
+    if (settings.coords) {
+      g.fillStyle = "rgba(60,38,12,0.72)"; g.textAlign = "center"; g.textBaseline = "middle";
+      var dpr = canvas.width / Math.max(1, canvas.getBoundingClientRect().width);
+      g.font = "500 " + Math.round(Math.max(9 * dpr, cell * (n >= 17 ? 0.42 : 0.36))) + "px " + getComputedStyle(document.body).fontFamily;
+      for (i = 0; i < n; i++) {
+        g.fillText(LETTERS[i], o + i * cell, o * 0.42); g.fillText(LETTERS[i], o + i * cell, W - o * 0.42);
+        g.fillText(String(n - i), o * 0.42, o + i * cell); g.fillText(String(n - i), W - o * 0.42, o + i * cell);
+      }
+    }
+    var r = cell * 0.48, showDead = G.phase !== "play", dead = new Set(showDead ? G.dead : []);
+    for (p = 0; p < n * n; p++) {
+      var c = P.b[p]; if (!c) continue;
+      x = o + (p % n) * cell; y = o + Math.floor(p / n) * cell;
+      stoneAt(x, y, r, c, dead.has(p) ? 0.38 : 1);
+    }
+    if (P.last >= 0 && G.phase === "play") {
+      var lp = xy(P.last, L);
+      g.strokeStyle = P.b[P.last] === 1 ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.75)";
+      g.lineWidth = Math.max(1.5, cell * 0.07); g.beginPath(); g.arc(lp[0], lp[1], r * 0.42, 0, 7); g.stroke();
+    }
+    if (showDead && score) {
+      var sq = cell * 0.26;
+      for (p = 0; p < n * n; p++) {
+        var ow = score.owner[p]; if (ow < 3) continue;
+        x = o + (p % n) * cell; y = o + Math.floor(p / n) * cell;
+        g.fillStyle = ow === 3 ? "rgba(10,10,10,0.88)" : "rgba(255,255,255,0.95)";
+        g.strokeStyle = ow === 3 ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"; g.lineWidth = 1;
+        g.fillRect(x - sq / 2, y - sq / 2, sq, sq); g.strokeRect(x - sq / 2, y - sq / 2, sq, sq);
+      }
+    }
+    if (overlay && G.phase === "play") {
+      for (p = 0; p < n * n; p++) {
+        var a = overlay[p], s2 = Math.abs(a); if (s2 < 0.2) continue;
+        if (P.b[p] && ((P.b[p] === 1) === (a > 0))) continue;
+        x = o + (p % n) * cell; y = o + Math.floor(p / n) * cell;
+        var side = cell * (0.2 + 0.45 * s2);
+        g.fillStyle = a > 0 ? "rgba(10,10,10," + (0.25 + 0.5 * s2) + ")" : "rgba(255,255,255," + (0.35 + 0.55 * s2) + ")";
+        g.fillRect(x - side / 2, y - side / 2, side, side);
+      }
+    }
+    var ghost = pending >= 0 ? pending : hover;
+    if (ghost >= 0 && G.phase === "play" && !P.b[ghost] && isHumanTurn() && !thinking) {
+      var gp = xy(ghost, L); stoneAt(gp[0], gp[1], r, P.toMove, pending >= 0 ? 0.6 : 0.35);
+    }
+    if (hint >= 0 && G.phase === "play") {
+      var hp = xy(hint, L);
+      g.save(); g.setLineDash([cell * 0.12, cell * 0.08]);
+      g.strokeStyle = "#B4400F"; g.lineWidth = Math.max(2, cell * 0.09);
+      g.beginPath(); g.arc(hp[0], hp[1], r * 0.82, 0, 7); g.stroke(); g.restore();
+    }
+  }
+  function resize() {
+    var rect = canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 3);
+    var W = Math.round(rect.width * dpr);
+    if (W > 0 && canvas.width !== W) { canvas.width = W; canvas.height = W; }
+    draw();
+  }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe($("#boardWrap")); else window.addEventListener("resize", resize);
+
+  function pointAt(ev) {
+    var rect = canvas.getBoundingClientRect(), L = lay(), s = canvas.width / rect.width;
+    var px = (ev.clientX - rect.left) * s, py = (ev.clientY - rect.top) * s;
+    var i = Math.round((px - L.o) / L.cell), j = Math.round((py - L.o) / L.cell);
+    if (i < 0 || j < 0 || i >= G.n || j >= G.n) return -1;
+    var dx = px - (L.o + i * L.cell), dy = py - (L.o + j * L.cell);
+    if (dx * dx + dy * dy > Math.pow(L.cell * 0.62, 2)) return -1;
+    return j * G.n + i;
+  }
+  var down = null;
+  canvas.addEventListener("pointerdown", function (e) { down = { x: e.clientX, y: e.clientY }; });
+  canvas.addEventListener("pointercancel", function () { down = null; });
+  canvas.addEventListener("pointerup", function (e) {
+    if (!down) return;
+    var moved = Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y); down = null;
+    if (moved > 14) return;
+    if (overlay) { overlay = null; note = ""; updateUI(); return; }
+    var p = pointAt(e); if (p < 0) return;
+    if (G.phase === "score") { toggleDead(p); return; }
+    if (G.phase !== "play" || !isHumanTurn() || thinking) return;
+    var needConfirm = settings.confirm === "always" || (settings.confirm === "large" && G.n >= 13);
+    if (needConfirm && e.pointerType !== "mouse") {
+      if (pending === p) { pending = -1; tryMove(p); }
+      else if (P.b[p]) { pending = -1; note = "That point is already taken."; updateUI(); }
+      else { pending = p; note = "Tap the same point again to place your stone."; updateUI(); }
+    } else tryMove(p);
+  });
+  canvas.addEventListener("pointermove", function (e) {
+    if (e.pointerType !== "mouse") return;
+    var p = pointAt(e); if (p !== hover) { hover = p; draw(); }
+  });
+  canvas.addEventListener("pointerleave", function () { if (hover >= 0) { hover = -1; draw(); } });
+
+  /* ---------- UI ---------- */
+  function updateUI() {
+    var ai = G.mode === "ai", nm = G.names;
+    $("#nameB").textContent = ai ? (G.human === 1 ? "You" : "Computer") : (nm ? nm.b : "Black");
+    $("#nameW").textContent = ai ? (G.human === 2 ? "You" : "Computer") : (nm ? nm.w : "White");
+    $("#subB").textContent = P.cap[1] + " captured";
+    $("#subW").textContent = P.cap[2] + " captured" + (G.komi ? " · +" + G.komi : "");
+    $("#chipB").classList.toggle("turn", G.phase === "play" && P.toMove === 1);
+    $("#chipW").classList.toggle("turn", G.phase === "play" && P.toMove === 2);
+    $("#meta").textContent = G.n + "×" + G.n + " · " + (ai ? aiShort(G.ai) : "Two players") + (G.handicap ? " · " + G.handicap + " stones" : "") + (G.rules === "japanese" ? " · Japanese" : " · Chinese") + " · Move " + moveCount();
+    $("#playControls").hidden = G.phase !== "play";
+    $("#scoreControls").hidden = G.phase !== "score";
+    $("#doneControls").hidden = G.phase !== "done";
+    var my = isHumanTurn() && !thinking;
+    $("#btnPass").disabled = !my;
+    $("#btnHint").disabled = !my || !!busyMsg;
+    $("#btnUndo").disabled = !canUndo();
+    $("#btnAccept").disabled = counting || !score;
+    $("#mResign").disabled = G.phase === "done";
+    $("#mAhead").disabled = G.phase !== "play";
+    $("#mStrength").disabled = !ai;
+
+    var s;
+    if (G.phase === "done") s = resultText();
+    else if (G.phase === "score") {
+      if (counting || !score) s = "Both passed. Counting…";
+      else {
+        var t = totals(), lead = t.b > t.w ? 1 : t.w > t.b ? 2 : 0;
+        if (!lead) s = (G.rules === "japanese" ? "Japanese count: " : "") + "Black <b>" + fmt(t.b) + "</b> · White <b>" + fmt(t.w) + "</b> · even. Tap a group to mark it dead or alive."; else
+        s = (G.rules === "japanese" ? "Japanese count: " : "") + "Black <b>" + fmt(t.b) + "</b> · White <b>" + fmt(t.w) + "</b> · " + (ai ? (lead === G.human ? "you're ahead" : "the computer is ahead") : colorName(lead) + " is ahead") +
+          " by " + fmt(Math.abs(t.b - t.w)) + ". Tap groups to mark them dead or alive.";
+      }
+    }
+    else if (busyMsg) s = busyMsg;
+    else if (thinking) s = note ? note + " The computer is thinking…" : "The computer is thinking…";
+    else if (note) s = note;
+    else if (P.passes > 0 && P.lastPass) {
+      s = (ai ? (P.lastPass === G.human ? "You passed." : "The computer passed.") : colorName(P.lastPass) + " passed.") + " Pass too to end and count, or keep playing.";
+    }
+    else if (ai) s = moveCount() === 0 ? "You play " + colorName(G.human) + ". Tap a point to place a stone." : "Your move.";
+    else s = colorName(P.toMove) + " to play.";
+    $("#status").innerHTML = "<span>" + s + "</span>";
+    draw();
+  }
+
+  var returnTo = null;
+  function openSheet(id) { closeSheets(); $(id).hidden = false; }
+  function closeSheets() { $$(".scrim").forEach(function (s) { s.hidden = true; }); $("#resignBox").hidden = true; }
+  $$("[data-close]").forEach(function (b) { b.addEventListener("click", closeSheets); });
+  $$(".scrim").forEach(function (s) { s.addEventListener("click", function (e) { if (e.target === s) { if (s.id === "aiScrim") closeStrength(); else closeSheets(); } }); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { if (!$("#aiScrim").hidden) closeStrength(); else closeSheets(); } });
+
+  function renderRecord() {
+    var keys = Object.keys(stats).filter(function (k) { return stats[k].w + stats[k].l > 0; });
+    keys.sort(function (a, b) { var A = a.split("|"), B = b.split("|"); return (+A[0] - +B[0]) || ((A[1] === "c" ? 99 : +A[1]) - (B[1] === "c" ? 99 : +B[1])); });
+    if (!keys.length) { $("#record").textContent = "No finished games yet."; return; }
+    $("#record").innerHTML = keys.map(function (k) {
+      var parts = k.split("|"), s = stats[k];
+      var lv = parts[1] === "c" ? "custom" : /^\d+$/.test(parts[1]) ? "level " + parts[1] : parts[1];
+      return parts[0] + "×" + parts[0] + ", " + lv + ": " + s.w + (s.w === 1 ? " win" : " wins") + ", " + s.l + (s.l === 1 ? " loss" : " losses");
+    }).join("<br>");
+  }
+  function openMenu() {
+    $("#optCoords").checked = settings.coords; $("#optSound").checked = settings.sound;
+    $$('input[name="confirm"]').forEach(function (r) { r.checked = r.value === settings.confirm; });
+    renderRecord(); openSheet("#menuScrim");
+  }
+
+  /* ---------- new game sheet ---------- */
+  function setRadio(name, val) { $$('#newForm input[name="' + name + '"]').forEach(function (r) { r.checked = r.value === String(val); }); }
+  function getRadio(name) { var r = document.querySelector('#newForm input[name="' + name + '"]:checked'); return r ? r.value : null; }
+  function buildHandicap(want) {
+    var size = +getRadio("size"), max = size <= 9 ? 5 : 9, cur = want != null ? +want : +(getRadio("handicap") || settings.handicap), html = "";
+    [0, 2, 3, 4, 5, 6, 7, 8, 9].forEach(function (h) {
+      if (h > max) return;
+      html += '<label><input type="radio" name="handicap" value="' + h + '" id="hc' + h + '"><span>' + (h ? h : "None") + "</span></label>";
+    });
+    $("#hcOpts").innerHTML = html;
+    setRadio("handicap", Math.min(cur, max));
+    $$('#newForm input[name="handicap"]').forEach(function (r) { r.addEventListener("change", syncNewForm); });
+  }
+  function syncNewForm() {
+    var local = getRadio("mode") === "local", hc = +getRadio("handicap");
+    $("#levelSet").hidden = local;
+    $("#colorSet").hidden = local;
+    $$('#newForm input[name="color"]').forEach(function (r) { r.disabled = hc > 0; });
+    $("#hcLegend").textContent = local ? "Handicap stones for Black" : "Handicap stones for you";
+    $$('#newForm input[name="komi"]').forEach(function (r) { r.disabled = hc > 0; });
+    var ai = settings.ai;
+    $("#ngLvNum").textContent = isCustom(ai) ? "C" : ai.level;
+    $("#ngLvName").textContent = aiLabel(ai);
+    var pt = persText(ai);
+    $("#ngLvDesc").textContent = (isCustom(ai) ? describeAI(ai) : LEVEL_INFO[ai.level][1]) + (pt ? " Personality: " + pt + "." : "");
+  }
+  var newDraft = null;
+  function openNew(keepDraft) {
+    if (!keepDraft || !newDraft) {
+      setRadio("size", settings.size); setRadio("mode", settings.mode);
+      setRadio("color", settings.color); setRadio("komi", settings.komi); setRadio("rules", settings.rules);
+      buildHandicap(settings.handicap);
+    }
+    newDraft = true;
+    syncNewForm(); openSheet("#newScrim");
+  }
+  $$('#newForm input[name="size"]').forEach(function (r) { r.addEventListener("change", function () { buildHandicap(); syncNewForm(); }); });
+  $$('#newForm input[name="mode"]').forEach(function (r) { r.addEventListener("change", syncNewForm); });
+  $("#newForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    settings.size = +getRadio("size"); settings.mode = getRadio("mode");
+    settings.color = getRadio("color"); settings.handicap = +getRadio("handicap"); settings.komi = +getRadio("komi"); settings.rules = getRadio("rules");
+    store.set("qg.settings", settings);
+    newDraft = null;
+    startGame(newGame(settings));
+  });
+  function startGame(game, msg) {
+    cancelAI(); closeSheets();
+    G = game; score = null; hint = -1; overlay = null; pending = -1; note = msg || ""; busyMsg = null; counting = false; passArmed = false;
+    rebuild(); save(); resize(); next();
+  }
+
+  /* ---------- strength sheet ---------- */
+  var draftAI = null;
+  function simsIndex(v) { var best = 0; SIM_STEPS.forEach(function (s, i) { if (Math.abs(s - v) < Math.abs(SIM_STEPS[best] - v)) best = i; }); return best; }
+  function lean(v, neg, pos) { var a = Math.abs(v); if (a < 5) return "Balanced"; return (a >= 60 ? "Strongly " : a >= 30 ? "" : "Slightly ") + (v < 0 ? neg : pos); }
+  function cap1(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+  function describeAI(ai) {
+    var bits = [ai.sims ? ai.sims.toLocaleString() + " simulations" : "no reading ahead",
+      Math.round(ai.mistakes * 100) + "% loose", Math.round(ai.tactics * 100) + "% tactics"];
+    return cap1(bits.join(", ")) + ".";
+  }
+  function renderStrength() {
+    var ai = draftAI, custom = isCustom(ai);
+    $("#lvRange").value = ai.level;
+    $("#lvNum").textContent = ai.level;
+    $("#lvName").textContent = (custom ? "Custom, from level " + ai.level : "Level " + ai.level + " · " + LEVEL_INFO[ai.level][0]);
+    var pt = persText(ai);
+    $("#lvDesc").textContent = (custom ? describeAI(ai) : LEVEL_INFO[ai.level][1]) + (pt ? " Personality: " + pt + "." : "");
+    $("#tSims").value = simsIndex(ai.sims);
+    $("#oSims").textContent = ai.sims ? ai.sims.toLocaleString() + " sims" : "None";
+    $("#tMist").value = Math.round(ai.mistakes * 100); $("#oMist").textContent = Math.round(ai.mistakes * 100) + "%";
+    $("#tTac").value = Math.round(ai.tactics * 100); $("#oTac").textContent = Math.round(ai.tactics * 100) + "%";
+    $("#tStyle").value = Math.round(ai.style * 100); $("#oStyle").textContent = lean(ai.style * 100, "territory", "centre");
+    $("#tSpirit").value = Math.round(ai.spirit * 100); $("#oSpirit").textContent = lean(ai.spirit * 100, "calm", "aggressive");
+    $("#tBig").value = Math.round(ai.big * 100); $("#oBig").textContent = lean(ai.big * 100, "local", "big moves");
+    $("#tRisk").value = Math.round(ai.risk * 100); $("#oRisk").textContent = lean(ai.risk * 100, "safe", "daring");
+    $("#tuneReset").disabled = !custom && !persText(ai);
+    $("#optAuto").checked = settings.autoAdjust;
+    $("#aiApply").textContent = returnTo === "game" ? "Use for this game" : "Use this strength";
+  }
+  function openStrength(from) {
+    returnTo = from;
+    draftAI = cloneAI(from === "game" ? G.ai : settings.ai);
+    $("#tuneBox").open = isCustom(draftAI);
+    renderStrength(); openSheet("#aiScrim");
+  }
+  function closeStrength() { if (returnTo === "new") openNew(true); else closeSheets(); }
+  $("#lvRange").addEventListener("input", function (e) { draftAI = keepPers(presetAI(+e.target.value), draftAI); renderStrength(); });
+  $("#tSims").addEventListener("input", function (e) { draftAI.sims = SIM_STEPS[+e.target.value]; renderStrength(); });
+  $("#tMist").addEventListener("input", function (e) { draftAI.mistakes = +e.target.value / 100; renderStrength(); });
+  $("#tTac").addEventListener("input", function (e) { draftAI.tactics = +e.target.value / 100; renderStrength(); });
+  $("#tStyle").addEventListener("input", function (e) { draftAI.style = +e.target.value / 100; renderStrength(); });
+  $("#tSpirit").addEventListener("input", function (e) { draftAI.spirit = +e.target.value / 100; renderStrength(); });
+  $("#tBig").addEventListener("input", function (e) { draftAI.big = +e.target.value / 100; renderStrength(); });
+  $("#tRisk").addEventListener("input", function (e) { draftAI.risk = +e.target.value / 100; renderStrength(); });
+  $("#tuneReset").addEventListener("click", function () { draftAI = presetAI(draftAI.level); renderStrength(); });
+  $("#optAuto").addEventListener("change", function (e) { settings.autoAdjust = e.target.checked; store.set("qg.settings", settings); });
+  $("#aiCancel").addEventListener("click", closeStrength);
+  $("#aiForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    settings.ai = cloneAI(draftAI); store.set("qg.settings", settings);
+    if (returnTo === "game" && G.mode === "ai") {
+      G.ai = cloneAI(draftAI); save();
+      note = "Strength changed: " + aiLabel(G.ai) + ".";
+      closeSheets(); updateUI();
+    } else closeStrength();
+  });
+  $("#ngStrength").addEventListener("click", function () { openStrength("new"); });
+
+  /* ---------- save / load sheets ---------- */
+  var downloadsCap = null;
+  var inViewer = !!(window.claude && typeof window.claude.use === "function");
+  if (inViewer) {
+    try { window.claude.use("downloads").then(function (d) { downloadsCap = d; }, function () { downloadsCap = null; }); } catch (e) {}
+  }
+  function fileName() { return "quiet-go-" + G.n + "x" + G.n + "-" + String(G.date || today()).replace(/[^0-9A-Za-z-]+/g, "_").slice(0, 20) + ".sgf"; }
+  function openSave() {
+    $("#sgfOut").value = toSgf();
+    $("#saveMsg").textContent = "";
+    $("#saveHelp").textContent = inViewer
+      ? "This is the game record in SGF, the format every Go app reads. Copy it to paste into another app, or save it as a file. Here the file ends in .sgf.txt; remove the .txt and any Go app opens it."
+      : "This is the game record in SGF, the format every Go app reads. Copy it, or save it as an .sgf file.";
+    $("#sgfFile").hidden = inViewer && !downloadsCap;
+    $("#sgfFile").textContent = inViewer ? "Save .sgf.txt" : "Save .sgf file";
+    openSheet("#saveScrim");
+  }
+  $("#sgfCopy").addEventListener("click", function () {
+    var text = $("#sgfOut").value, ta = $("#sgfOut");
+    function fallback() { ta.focus(); ta.select(); try { ta.setSelectionRange(0, text.length); } catch (e) {} $("#saveMsg").textContent = "The text is selected. Use Copy from the menu that appears."; }
+    try {
+      navigator.clipboard.writeText(text).then(function () { $("#saveMsg").textContent = "Copied. Paste it into any Go app or site that takes SGF."; }, fallback);
+    } catch (e) { fallback(); }
+  });
+  $("#sgfFile").addEventListener("click", function () {
+    var text = $("#sgfOut").value, name = fileName();
+    if (inViewer) {
+      if (!downloadsCap) { $("#saveMsg").textContent = "Saving files isn't available here. Use Copy SGF instead."; return; }
+      downloadsCap.save({ filename: name + ".txt", data: text }).then(function () {
+        $("#saveMsg").textContent = "Saved as " + name + ".txt.";
+      }, function (err) {
+        $("#saveMsg").textContent = err && err.code === "declined" ? "Not saved." : "That didn't save. Use Copy SGF instead.";
+      });
+      return;
+    }
+    var file = null;
+    try { file = new File([text], name, { type: "application/x-go-sgf" }); } catch (e) {}
+    if (file && navigator.canShare && navigator.canShare({ files: [file] }) && /iPhone|iPad|Android/i.test(navigator.userAgent)) {
+      navigator.share({ files: [file], title: name }).then(function () { $("#saveMsg").textContent = "Shared."; }, function () {});
+      return;
+    }
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: "application/x-go-sgf" }));
+    a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    $("#saveMsg").textContent = "Saved as " + name + ".";
+  });
+  function openLoad() { $("#loadMsg").textContent = ""; openSheet("#loadScrim"); }
+  $("#sgfFileIn").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0]; if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () { $("#sgfIn").value = String(rd.result || ""); $("#loadMsg").textContent = "Read " + f.name + ". Tap Open game."; };
+    rd.onerror = function () { $("#loadMsg").textContent = "Couldn't read that file."; };
+    rd.readAsText(f);
+    e.target.value = "";
+  });
+  $("#sgfLoadBtn").addEventListener("click", function () {
+    var text = $("#sgfIn").value.trim();
+    if (!text) { $("#loadMsg").textContent = "Pick a file or paste an SGF record first."; return; }
+    var rec;
+    try { rec = parseSgf(text); } catch (err) { $("#loadMsg").textContent = err.message; return; }
+    var as = (document.querySelector('input[name="loadAs"]:checked') || {}).value || "tomove";
+    var game = { v: 2, n: rec.n, mode: as === "local" ? "local" : "ai", rules: rec.rules, ai: cloneAI(settings.ai), human: 0, handicap: rec.handicap, komi: rec.komi,
+      setup: rec.setup, first: rec.first, moves: rec.moves, phase: "play", dead: [], result: null, date: rec.date, names: as === "local" ? rec.names : null };
+    var total = rec.moves.length;
+    G = game; rebuild();
+    var kept = G.moves.length;
+    if (game.mode === "ai") G.human = as === "tomove" ? P.toMove : +as;
+    if (P.passes >= 2) { G.moves.push({ p: -2, c: 0 }); rebuild(); }
+    $("#sgfIn").value = "";
+    var loadNote = "Loaded " + kept + (kept === 1 ? " move" : " moves") + (kept < total ? " (stopped at an illegal move)" : "") + ". " +
+      (G.mode === "ai" ? (P.toMove === G.human ? "Your move." : "The computer moves next.") : colorName(P.toMove) + " to play.");
+    startGame(G, loadNote);
+  });
+
+  /* ---------- buttons ---------- */
+  $("#btnPass").addEventListener("click", doPass);
+  $("#btnUndo").addEventListener("click", doUndo);
+  $("#btnHint").addEventListener("click", doHint);
+  $("#btnMenu").addEventListener("click", openMenu);
+  $("#btnMenu2").addEventListener("click", openMenu);
+  $("#btnSave2").addEventListener("click", openSave);
+  $("#btnNew2").addEventListener("click", function () { openNew(false); });
+  $("#mNew").addEventListener("click", function () { openNew(false); });
+  $("#mStrength").addEventListener("click", function () { openStrength("game"); });
+  $("#mAhead").addEventListener("click", doAhead);
+  $("#mSave").addEventListener("click", openSave);
+  $("#mLoad").addEventListener("click", openLoad);
+  $("#mResign").addEventListener("click", function () { $("#resignBox").hidden = false; });
+  $("#resignNo").addEventListener("click", function () { $("#resignBox").hidden = true; });
+  $("#resignYes").addEventListener("click", resign);
+  $("#btnResume").addEventListener("click", function () {
+    G.phase = "play"; G.dead = []; score = null; counting = false;
+    G.moves.push({ p: -2, c: 0 }); rebuild(); note = "Play on. Both players need to pass again to finish.";
+    save(); next();
+  });
+  $("#btnAccept").addEventListener("click", acceptScore);
+  $("#optCoords").addEventListener("change", function (e) { settings.coords = e.target.checked; store.set("qg.settings", settings); draw(); });
+  $("#optSound").addEventListener("change", function (e) { settings.sound = e.target.checked; store.set("qg.settings", settings); if (settings.sound) { initAudio(); click(); } });
+  $$('input[name="confirm"]').forEach(function (r) {
+    r.addEventListener("change", function () { settings.confirm = r.value; store.set("qg.settings", settings); pending = -1; draw(); });
+  });
+  document.addEventListener("pointerdown", function () { if (settings.sound && (!actx || actx.state === "suspended")) initAudio(); }, { passive: true });
+
+  /* ---------- boot ---------- */
+  G = migrate(store.get("qg.game"));
+  if (G) { try { rebuild(); } catch (e) { G = null; } }
+  if (!G) { G = newGame(settings); rebuild(); }
+  if (G.phase === "score") { if (G.counted === false) startCounting(); else { counting = false; recount(); } }
+  else if (G.phase === "play" && P.passes >= 2) startCounting();
+  if (!store.get("qg.statsV2")) {
+    Object.keys(stats).forEach(function (k) {
+      var m = /^(\d+)\|([012])$/.exec(k); if (!m) return;
+      var nk = m[1] + "|" + [3, 4, 5][+m[2]], a = stats[k], b = stats[nk] || { w: 0, l: 0 };
+      stats[nk] = { w: a.w + b.w, l: a.l + b.l }; delete stats[k];
+    });
+    store.set("qg.stats", stats); store.set("qg.statsV2", true);
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { woodKey = ""; draw(); });
+  resize();
+  next();
+
+  /* Offline support when installed from a real website (not inside Claude, not from a local file) */
+  if (!inViewer && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  }
+})();
+</script>
+</body>
+</html>
